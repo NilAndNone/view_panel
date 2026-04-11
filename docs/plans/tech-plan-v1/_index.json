@@ -1,0 +1,133 @@
+{
+  "plan_set_id": "tech-plan-v1",
+  "source": "docs/tech-plan-v1.md",
+  "last_updated": "2026-04-11",
+  "plans": [
+    {
+      "plan_id": "P01",
+      "title": "Codex Runtime Contract",
+      "status": "ready",
+      "depends_on": [],
+      "path": "docs/plans/tech-plan-v1/01-codex-runtime-contract.md",
+      "produces": [
+        "docs/operations/codex-runtime-contract.md",
+        "third_party/codex-protocol/"
+      ]
+    },
+    {
+      "plan_id": "P02",
+      "title": "App-Server Client Lifecycle",
+      "status": "proposed",
+      "depends_on": ["P01"],
+      "path": "docs/plans/tech-plan-v1/02-app-server-client-lifecycle.md",
+      "produces": [
+        "internal/appserver/client.go",
+        "internal/appserver/messages.go",
+        "internal/appserver/runner.go"
+      ]
+    },
+    {
+      "plan_id": "P03",
+      "title": "Run Layout And Artifact Writer",
+      "status": "ready",
+      "depends_on": [],
+      "path": "docs/plans/tech-plan-v1/03-run-layout-and-artifact-writer.md",
+      "produces": [
+        "internal/storage/layout.go",
+        "internal/hash/hash.go"
+      ]
+    },
+    {
+      "plan_id": "P04",
+      "title": "Audit Log Pipeline",
+      "status": "proposed",
+      "depends_on": ["P02", "P03"],
+      "path": "docs/plans/tech-plan-v1/04-audit-log-pipeline.md",
+      "produces": [
+        "internal/audit/logger.go",
+        "internal/audit/summary.go"
+      ]
+    },
+    {
+      "plan_id": "P05",
+      "title": "Prepare Input Builder",
+      "status": "proposed",
+      "depends_on": ["P03"],
+      "path": "docs/plans/tech-plan-v1/05-prepare-input-builder.md",
+      "produces": [
+        "internal/materials/loader.go",
+        "internal/persona/library.go",
+        "internal/stage/prepare/prepare.go",
+        "schemas/dispatch_input_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P06",
+      "title": "Prepare Review Gate",
+      "status": "proposed",
+      "depends_on": ["P04", "P05"],
+      "path": "docs/plans/tech-plan-v1/06-prepare-review-gate.md",
+      "produces": [
+        "runtime/skills/wv-prepare-stage/SKILL.md",
+        "schemas/prepare_review_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P07",
+      "title": "Answer Worker Workspace",
+      "status": "proposed",
+      "depends_on": ["P06"],
+      "path": "docs/plans/tech-plan-v1/07-answer-worker-workspace.md",
+      "produces": [
+        "internal/stage/answer/workspace.go",
+        "runs/<run_id>/02_answer/personas/<persona_id>/workspace/AGENTS.md",
+        "runs/<run_id>/02_answer/personas/<persona_id>/outgoing_input.json"
+      ]
+    },
+    {
+      "plan_id": "P08",
+      "title": "Answer Single Worker Runner",
+      "status": "proposed",
+      "depends_on": ["P07"],
+      "path": "docs/plans/tech-plan-v1/08-answer-single-worker-runner.md",
+      "produces": [
+        "internal/stage/answer/runner.go",
+        "schemas/worldview_worker_result_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P09",
+      "title": "Answer Batch Orchestration",
+      "status": "proposed",
+      "depends_on": ["P08"],
+      "path": "docs/plans/tech-plan-v1/09-answer-batch-orchestration.md",
+      "produces": [
+        "internal/stage/answer/batch.go",
+        "internal/orchestrator/run.go"
+      ]
+    },
+    {
+      "plan_id": "P10",
+      "title": "Render Input Aggregation",
+      "status": "proposed",
+      "depends_on": ["P09"],
+      "path": "docs/plans/tech-plan-v1/10-render-input-aggregation.md",
+      "produces": [
+        "internal/stage/render/aggregate.go",
+        "runs/<run_id>/03_render/render_input.json"
+      ]
+    },
+    {
+      "plan_id": "P11",
+      "title": "Render Stage Output",
+      "status": "proposed",
+      "depends_on": ["P10"],
+      "path": "docs/plans/tech-plan-v1/11-render-stage-output.md",
+      "produces": [
+        "internal/stage/render/render.go",
+        "runtime/skills/wv-render-stage/SKILL.md",
+        "schemas/panel_result_v1.json"
+      ]
+    }
+  ]
+}
