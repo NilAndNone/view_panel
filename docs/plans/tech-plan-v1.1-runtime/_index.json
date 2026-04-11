@@ -1,0 +1,164 @@
+{
+  "plan_set_id": "tech-plan-v1.1-runtime",
+  "source": "docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md",
+  "last_updated": "2026-04-11",
+  "plans": [
+    {
+      "plan_id": "P00",
+      "title": "CLI + Config + Schema Validation",
+      "status": "ready",
+      "depends_on": [],
+      "path": "docs/plans/tech-plan-v1.1-runtime/00-cli-config-schema-validation.md",
+      "produces": [
+        "cmd/worldview-panel/main.go",
+        "internal/config/config.go",
+        "internal/schema/validate.go"
+      ]
+    },
+    {
+      "plan_id": "P01",
+      "title": "Codex Runtime Contract",
+      "status": "ready",
+      "depends_on": [],
+      "path": "docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md",
+      "produces": [
+        "docs/operations/codex-runtime-contract.md",
+        "third_party/codex-protocol/"
+      ]
+    },
+    {
+      "plan_id": "P02",
+      "title": "App-Server Client Lifecycle",
+      "status": "proposed",
+      "depends_on": ["P00", "P01"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md",
+      "produces": [
+        "internal/appserver/client.go",
+        "internal/appserver/messages.go",
+        "internal/appserver/runner.go"
+      ]
+    },
+    {
+      "plan_id": "P03",
+      "title": "Run Layout + Artifact Writer",
+      "status": "ready",
+      "depends_on": [],
+      "path": "docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md",
+      "produces": [
+        "internal/storage/layout.go",
+        "internal/hash/hash.go"
+      ]
+    },
+    {
+      "plan_id": "P04",
+      "title": "Prepare Input Builder",
+      "status": "proposed",
+      "depends_on": ["P03"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md",
+      "produces": [
+        "internal/materials/loader.go",
+        "internal/persona/library.go",
+        "internal/stage/prepare/prepare.go",
+        "schemas/dispatch_input_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P05",
+      "title": "Prepare Hard Gate",
+      "status": "proposed",
+      "depends_on": ["P03", "P04"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/05-prepare-hard-gate.md",
+      "produces": [
+        "internal/stage/prepare/gate.go",
+        "schemas/prepare_gate_status_v1.json",
+        "runs/<run_id>/01_prepare/prepare_gate_status_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P06",
+      "title": "Prepare Soft Review",
+      "status": "proposed",
+      "depends_on": ["P04"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/06-prepare-soft-review.md",
+      "produces": [
+        "internal/stage/prepare/review.go",
+        "runtime/skills/wv-prepare-stage/SKILL.md",
+        "schemas/prepare_review_v1.json",
+        "runs/<run_id>/01_prepare/prepare_review_v1.json"
+      ]
+    },
+    {
+      "plan_id": "P07",
+      "title": "Answer Workspace Seal",
+      "status": "proposed",
+      "depends_on": ["P03", "P05"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/07-answer-workspace-seal.md",
+      "produces": [
+        "internal/stage/answer/workspace.go",
+        "runs/<run_id>/02_answer/personas/<persona_id>/workspace/AGENTS.md",
+        "runs/<run_id>/02_answer/personas/<persona_id>/input/prompt.txt",
+        "runs/<run_id>/02_answer/personas/<persona_id>/outgoing_input.json"
+      ]
+    },
+    {
+      "plan_id": "P08",
+      "title": "Answer Single Worker Execution",
+      "status": "proposed",
+      "depends_on": ["P01", "P02", "P07"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/08-answer-single-worker-execution.md",
+      "produces": [
+        "runtime/skills/wv-answer-stage/SKILL.md",
+        "internal/stage/answer/runner.go",
+        "schemas/worldview_worker_result_v1.json",
+        "runs/<run_id>/02_answer/personas/<persona_id>/result.raw.txt",
+        "runs/<run_id>/02_answer/personas/<persona_id>/result.json",
+        "runs/<run_id>/02_answer/personas/<persona_id>/attestation.json",
+        "runs/<run_id>/02_answer/personas/<persona_id>/status.json"
+      ]
+    },
+    {
+      "plan_id": "P09",
+      "title": "Answer Batch Orchestration",
+      "status": "ready",
+      "depends_on": ["P08"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/09-answer-batch-orchestration.md",
+      "produces": [
+        "internal/stage/answer/batch.go",
+        "internal/orchestrator/run.go",
+        "schemas/worldview_answer_batch_v1.json",
+        "runs/<run_id>/02_answer/answer_batch.json"
+      ]
+    },
+    {
+      "plan_id": "P10",
+      "title": "Render Input Aggregation",
+      "status": "ready",
+      "depends_on": ["P03", "P09"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/10-render-input-aggregation.md",
+      "produces": [
+        "internal/stage/render/aggregate.go",
+        "runs/<run_id>/03_render/raw_render_input.json",
+        "runs/<run_id>/03_render/certified_render_input.json"
+      ]
+    },
+    {
+      "plan_id": "P11",
+      "title": "Render Outputs",
+      "status": "ready",
+      "depends_on": ["P02", "P10"],
+      "path": "docs/plans/tech-plan-v1.1-runtime/11-render-outputs.md",
+      "produces": [
+        "internal/stage/render/render.go",
+        "runtime/skills/wv-render-stage/SKILL.md",
+        "schemas/panel_result_v1.json",
+        "runs/<run_id>/03_render/raw_panel.json",
+        "runs/<run_id>/03_render/raw_panel.md",
+        "runs/<run_id>/03_render/raw_cards.json",
+        "runs/<run_id>/03_render/certified_panel.json",
+        "runs/<run_id>/03_render/certified_panel.md",
+        "runs/<run_id>/03_render/certified_cards.json",
+        "runs/<run_id>/03_render/status.json"
+      ]
+    }
+  ]
+}
