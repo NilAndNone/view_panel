@@ -1,6 +1,6 @@
 {
   "plan_set_id": "tech-plan-runtime",
-  "source": "docs/tech-plan-v1.md",
+  "source": "docs/plans/tech-plan-runtime/README.md",
   "last_updated": "2026-04-12",
   "plans": [
     {

@@ -22,11 +22,13 @@ This is the repository's single retained runtime plan set. It keeps the incident
 
 Those belong to a separate parallel content-planning line.
 
-## Relationship To Historical Sources
+## Historical Background
 
-1. `docs/tech-plan-v1.md` remains the historical source document for the original runtime direction.
-2. `docs/plans/tech-plan-runtime/` is the single retained runtime execution plan set.
-3. Git history, not parallel plan directories, carries version history.
+This retained runtime plan set absorbed the useful runtime constraints from earlier planning iterations.
+
+The active technical source now lives entirely under `docs/plans/tech-plan-runtime/`.
+
+Git history, not parallel planning documents, preserves version history.
 
 ## Plan List
 

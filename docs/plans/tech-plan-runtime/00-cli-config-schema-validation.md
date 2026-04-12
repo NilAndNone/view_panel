@@ -4,7 +4,7 @@ title: CLI + Config + Schema Validation
 status: ready
 depends_on: []
 consumes:
-  - docs/tech-plan-v1.md
+  - docs/plans/tech-plan-runtime/README.md
 produces:
   - cmd/worldview-panel/main.go
   - internal/config/config.go
@@ -58,7 +58,7 @@ Create the runtime entrypoint for worldview-panel that parses startup inputs, ap
 - Stage 2 soft/hard execution logic and render chain logic.
 
 ## Required Inputs
-- docs/tech-plan-v1.md
+- docs/plans/tech-plan-runtime/README.md
 
 ## Implementation Tasks
 1. In `cmd/worldview-panel/main.go`, define deterministic startup ordering:

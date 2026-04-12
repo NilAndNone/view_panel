@@ -4,7 +4,7 @@ title: Codex Runtime Contract
 status: ready
 depends_on: []
 consumes:
-  - docs/tech-plan-v1.md
+  - docs/plans/tech-plan-runtime/README.md
 produces:
   - docs/operations/codex-runtime-contract.md
   - third_party/codex-protocol/
@@ -40,7 +40,7 @@ Define the canonical Codex runtime contract used by all v1.1 runtime stages.
 
 # Required Inputs
 
-- docs/tech-plan-v1.md
+- docs/plans/tech-plan-runtime/README.md
 
 # Implementation Tasks
 

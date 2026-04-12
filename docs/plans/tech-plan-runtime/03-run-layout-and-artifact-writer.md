@@ -4,7 +4,7 @@ title: Run Layout + Artifact Writer
 status: ready
 depends_on: []
 consumes:
-  - docs/tech-plan-v1.md
+  - docs/plans/tech-plan-runtime/README.md
 produces:
   - internal/storage/layout.go
   - internal/hash/hash.go
@@ -83,7 +83,7 @@ Create a deterministic, stage-agnostic filesystem foundation so all downstream r
 
 # Required Inputs
 
-- `docs/tech-plan-v1.md`
+- `docs/plans/tech-plan-runtime/README.md`
 
 # Implementation Tasks
 
