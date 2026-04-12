@@ -6,8 +6,8 @@ This plan set is a runtime-only redesign of `tech-plan-v1`. It keeps the correct
 
 ## Relationship To V1
 
-1. `docs/plans/tech-plan-v1/` remains the reference version.
-2. `docs/plans/tech-plan-v1.1-runtime/` is the new runtime execution plan set.
+1. `docs/tech-plan-v1.md` remains the historical source document for the original runtime direction.
+2. `docs/plans/tech-plan-v1.1-runtime/` is the retained runtime execution plan set.
 3. This directory does not cover persona/content-pack planning.
 
 ## Key Changes
@@ -43,4 +43,3 @@ This plan set is a runtime-only redesign of `tech-plan-v1`. It keeps the correct
 ## Out Of Scope
 
 This runtime plan set does not include persona pack schema, domain material packs, or persona distinctness/content acceptance work. Those belong to a separate content planning line.
-

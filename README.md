@@ -103,6 +103,26 @@ go build -o go_bin ./cmd/worldview-panel
 ./runs/<run_id>/
 ```
 
+## Smoke
+
+当前仓库已经提供真实全流程 smoke 入口：
+
+```sh
+make smoke
+```
+
+它会：
+
+1. 构建二进制
+2. 用固定 smoke dataset 跑真实 runtime flow
+3. 自动检查关键 prepare / answer / render artifacts
+
+如果仓库位于 Android/Termux 共享存储路径，仓库里的 `go_bin` 可能因为 `noexec` 不能直接执行；`make smoke` 已经内置了本地 mirror 运行方式，优先用它做真实联调。
+
+更完整的运行、排查和发布说明见：
+
+- [runtime-smoke-and-release-checklist.md](/storage/emulated/0/projects/view_panel/docs/operations/runtime-smoke-and-release-checklist.md)
+
 ## CLI 参数
 
 当前 CLI 只接受 6 个启动参数：

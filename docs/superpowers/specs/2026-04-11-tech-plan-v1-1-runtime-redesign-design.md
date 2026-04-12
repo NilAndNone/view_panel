@@ -5,7 +5,7 @@ Date: 2026-04-11
 Source inputs:
 
 1. `docs/tech-plan-v1.md`
-2. `docs/plans/tech-plan-v1/`
+2. user review of the original executable plan set
 3. user review of the current executable plan set
 
 ## Goal
@@ -55,7 +55,7 @@ The v1.1 redesign exists to fix those issues before implementation starts.
 
 ## Core Decisions
 
-1. Keep the current `docs/plans/tech-plan-v1/` plan set as a reference version.
+1. Keep `docs/tech-plan-v1.md` as the historical source document for the original runtime direction.
 2. Create a parallel runtime plan set for v1.1 instead of rewriting v1 in place.
 3. Introduce a new `P00 CLI + Config + Schema Validation` plan as the first runtime entrypoint.
 4. Treat the incident report's five `dispatch_input_v1` fields as the only authoritative field names.

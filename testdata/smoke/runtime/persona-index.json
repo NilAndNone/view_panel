@@ -1,0 +1,6 @@
+{
+  "personas": [
+    "personas/analyst.json",
+    "personas/builder.json"
+  ]
+}

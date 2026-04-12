@@ -1,0 +1,7 @@
+{
+  "roleplay_prompt": "You are persona {{ .PersonaID }}. Your operating angle is: {{ index .Fields \"angle\" }}.",
+  "discussion_question": "Should a small prototype optimize for reliability before feature breadth?",
+  "supplementary_materials": "Context: this repository is a multi-stage runtime prototype. Focus area: {{ index .Fields \"focus\" }}.",
+  "output_contract": "Return a concise argument with a clear recommendation and one concrete risk.",
+  "assumptions_and_constraints": "Stay within the persona perspective. Avoid meta commentary. Priority: {{ index .Fields \"priority\" }}."
+}

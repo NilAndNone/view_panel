@@ -34,12 +34,11 @@ Treat the repository as:
 
 Do not treat the root as a pending `tech-plan-v1` execution workspace anymore.
 
-The old executable plan sets still exist under:
+The retained planning reference now lives under:
 
-- `docs/plans/tech-plan-v1/`
 - `docs/plans/tech-plan-v1.1-runtime/`
 
-Those are reference artifacts now, not the root dispatch contract.
+Earlier execution-plan artifacts were pruned. They are no longer part of the repository-level dispatch contract.
 
 ## Source Of Truth Order
 
@@ -49,7 +48,7 @@ For the current codebase, use this order:
 2. `README.md`
 3. `docs/operations/codex-runtime-contract.md`
 4. `docs/plans/tech-plan-v1.1-runtime/`
-5. older plan/spec documents
+5. `docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md`
 
 If code and plan docs disagree, prefer the code, then update the docs deliberately.
 
