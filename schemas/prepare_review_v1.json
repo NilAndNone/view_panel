@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "prepare_review_v1.json",
+  "$defs": {
+    "category_counts": {
+      "type": "object",
+      "required": [
+        "weak_persona_differentiation",
+        "suspicious_material_assembly",
+        "output_contract_issue",
+        "review_execution"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "weak_persona_differentiation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suspicious_material_assembly": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_contract_issue": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review_execution": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "finding_id",
+        "severity",
+        "category",
+        "persona_id",
+        "artifact_path",
+        "message",
+        "evidence",
+        "suggested_follow_up",
+        "blocks_stage2"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "severity": {
+          "const": "warning"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "weak_persona_differentiation",
+            "suspicious_material_assembly",
+            "output_contract_issue",
+            "review_execution"
+          ]
+        },
+        "persona_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifact_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggested_follow_up": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocks_stage2": {
+          "const": false
+        }
+      }
+    }
+  },
+  "type": "object",
+  "required": [
+    "schema_version",
+    "stage",
+    "review_mode",
+    "status",
+    "summary",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "prepare_review_v1"
+    },
+    "stage": {
+      "const": "01_prepare"
+    },
+    "review_mode": {
+      "const": "advisory"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed_clean",
+        "completed_with_warnings",
+        "review_unavailable"
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "non_blocking",
+        "stage2_dependency",
+        "review_completed",
+        "persona_count",
+        "finding_count",
+        "category_counts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "non_blocking": {
+          "const": true
+        },
+        "stage2_dependency": {
+          "const": "none"
+        },
+        "review_completed": {
+          "type": "boolean"
+        },
+        "persona_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "category_counts": {
+          "$ref": "#/$defs/category_counts"
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  }
+}

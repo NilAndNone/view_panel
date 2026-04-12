@@ -1,0 +1,597 @@
+package answer
+
+import (
+	"bytes"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	panelhash "view_panel/internal/hash"
+	"view_panel/internal/storage"
+)
+
+const (
+	answerStage                     = "02_answer"
+	answerOutgoingInputSchemaV1     = "answer_outgoing_input_v1"
+	workerResultSchemaV1            = "worldview_worker_result_v1"
+	workerAttestationSchemaV1       = "worldview_worker_attestation_v1"
+	workerStatusSchemaV1            = "worldview_worker_status_v1"
+	answerBatchSchemaV1             = "worldview_answer_batch_v1"
+	authoritativeCompletedItemType  = "item/completed.agentMessage"
+	prelaunchVerificationPhase      = "prelaunch_verification"
+	rejectedBeforeLaunchOutcome     = "rejected_before_launch"
+	batchPreDispatchPhase           = "batch_pre_dispatch"
+	notInvokedSentinel              = "not_invoked"
+	resultRawModeAuthoritativeText  = "authoritative_text"
+	resultRawModeDiagnosticText     = "diagnostic_text"
+	resultRawModeEmpty              = "empty"
+	prepareGateStatusArtifactName   = "prepare_gate_status_v1.json"
+	outgoingInputArtifactName       = "outgoing_input.json"
+	resultRawArtifactName           = "result.raw.txt"
+	resultJSONArtifactName          = "result.json"
+	attestationArtifactName         = "attestation.json"
+	statusArtifactName              = "status.json"
+	answerBatchArtifactName         = "answer_batch.json"
+	workspaceAgentsArtifactName     = "workspace/AGENTS.md"
+	inputPromptArtifactName         = "input/prompt.txt"
+	isolatedSkillArtifactName       = "skill/SKILL.md"
+	outgoingInputPathLiteral        = "outgoing_input.json"
+	statusOutcomeCompleted          = "completed"
+	statusOutcomeInterrupted        = "interrupted"
+	statusOutcomeFailed             = "failed"
+	batchOutcomeCertified           = "certified"
+	batchOutcomeRejected            = "rejected"
+	batchOutcomeFailed              = "failed"
+	rejectionReasonForbiddenTool    = "forbidden_tool"
+	failureReasonWorkerTimeout      = "worker_timeout"
+	failureReasonBatchTimeout       = "batch_timeout"
+	failureReasonBatchCancelledRun  = "batch_cancelled_in_flight"
+	failureReasonBatchCancelledWait = "batch_cancelled_before_start"
+	failureReasonLaunchError        = "launch_error"
+	failureReasonMissingArtifact    = "missing_worker_artifact"
+	failureReasonInvalidArtifact    = "invalid_worker_artifact"
+	failureReasonWorkerFailed       = "worker_failed"
+	failureReasonWorkerInterrupted  = "worker_interrupted"
+	failureReasonAuthoritativeMiss  = "authoritative_output_missing"
+	failureReasonResultJSONMissing  = "result_json_missing"
+	failureReasonResultArtifactMiss = "result_json_artifact_missing"
+)
+
+type SealWorkspacesRequest struct {
+	RepoRoot        string
+	RunRoot         string
+	SkillSourcePath string
+	IsolatedBaseDir string
+}
+
+type SealWorkspacesResult struct {
+	Blocked   bool
+	PersonaIDs []string
+	Workspaces []SealedPersonaWorkspace
+}
+
+type SealedPersonaWorkspace struct {
+	PersonaID            string `json:"persona_id"`
+	RunRoot              string `json:"run_root"`
+	RunPersonaDir        string `json:"run_persona_dir"`
+	OutgoingInputPath    string `json:"outgoing_input_path"`
+	IsolatedRoot         string `json:"isolated_root"`
+	CWD                  string `json:"cwd"`
+	HomeDir              string `json:"home_dir"`
+	WorkspaceAgentsPath  string `json:"workspace_agents_path"`
+	PromptPath           string `json:"prompt_path"`
+	SkillPath            string `json:"skill_path"`
+}
+
+type prepareGateStatus struct {
+	CanProceedToStage2 bool     `json:"can_proceed_to_stage2"`
+	PersonaIDs         []string `json:"persona_ids"`
+}
+
+type prepareHashLedger struct {
+	DispatchInputSHA256 string `json:"dispatch_input_sha256"`
+	AgentsSHA256        string `json:"agents_sha256"`
+	PromptSHA256        string `json:"prompt_sha256"`
+	BundleSHA256        string `json:"bundle_sha256"`
+}
+
+type outgoingInputRecord struct {
+	SchemaVersion             string `json:"schema_version"`
+	Stage                     string `json:"stage"`
+	PersonaID                 string `json:"persona_id"`
+	AgentInstructionsPath     string `json:"agent_instructions_path"`
+	AgentInstructionsSHA256   string `json:"agent_instructions_sha256"`
+	PromptPath                string `json:"prompt_path"`
+	PromptSHA256              string `json:"prompt_sha256"`
+	SkillPath                 string `json:"skill_path"`
+	SkillSHA256               string `json:"skill_sha256"`
+	SourceDispatchInputSHA256 string `json:"source_dispatch_input_sha256"`
+	CombinedInputSHA256       string `json:"combined_input_sha256"`
+}
+
+func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
+	repoRoot, err := resolvePathLoose(req.RepoRoot)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve repo root: %w", err)
+	}
+
+	runRoot, err := resolvePathLoose(req.RunRoot)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve run root: %w", err)
+	}
+
+	gatePath, err := storage.ResolvePath(storage.PrepareRoot(runRoot), prepareGateStatusArtifactName)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve gate artifact path: %w", err)
+	}
+	gateBytes, err := readRegularFile(gatePath)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("read gate artifact: %w", err)
+	}
+
+	gate, err := parsePrepareGateStatus(gateBytes)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("parse gate artifact: %w", err)
+	}
+
+	result := SealWorkspacesResult{
+		Blocked:   !gate.CanProceedToStage2,
+		PersonaIDs: append([]string(nil), gate.PersonaIDs...),
+		Workspaces: make([]SealedPersonaWorkspace, 0, len(gate.PersonaIDs)),
+	}
+	if result.Blocked {
+		return result, nil
+	}
+
+	skillSourcePath, skillRepoRelativePath, err := resolveFileWithinRoot(repoRoot, req.SkillSourcePath)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve answer skill: %w", err)
+	}
+
+	skillBytes, err := readRegularFile(skillSourcePath)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("read answer skill: %w", err)
+	}
+	skillSHA := panelhash.SHA256Hex(skillBytes)
+
+	isolatedBaseDir, err := resolvePathLoose(req.IsolatedBaseDir)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve isolated base dir: %w", err)
+	}
+
+	homeDir, err := currentUserHomeDir()
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve current user home: %w", err)
+	}
+	if err := ensureOutsideRestrictedTrees(isolatedBaseDir, repoRoot, runRoot, homeDir); err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("validate isolated base dir: %w", err)
+	}
+
+	runID, err := runIDFromRunRoot(runRoot)
+	if err != nil {
+		return SealWorkspacesResult{}, err
+	}
+
+	for _, personaID := range gate.PersonaIDs {
+		agentsPath, err := storage.PreparePersonaArtifactPath(runRoot, personaID, "agents.md")
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve agents path for %s: %w", personaID, err)
+		}
+		promptPath, err := storage.PreparePersonaArtifactPath(runRoot, personaID, "prompt.txt")
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve prompt path for %s: %w", personaID, err)
+		}
+		hashesPath, err := storage.PreparePersonaArtifactPath(runRoot, personaID, "hashes.json")
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve hashes path for %s: %w", personaID, err)
+		}
+
+		agentsBytes, err := readRegularFile(agentsPath)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("read agents for %s: %w", personaID, err)
+		}
+		promptBytes, err := readRegularFile(promptPath)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("read prompt for %s: %w", personaID, err)
+		}
+		hashesBytes, err := readRegularFile(hashesPath)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("read hashes for %s: %w", personaID, err)
+		}
+
+		hashLedger, err := parsePrepareHashLedger(hashesBytes)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("parse hashes for %s: %w", personaID, err)
+		}
+
+		agentsSHA := panelhash.SHA256Hex(agentsBytes)
+		if agentsSHA != hashLedger.AgentsSHA256 {
+			return SealWorkspacesResult{}, fmt.Errorf("agents hash mismatch for %s", personaID)
+		}
+		promptSHA := panelhash.SHA256Hex(promptBytes)
+		if promptSHA != hashLedger.PromptSHA256 {
+			return SealWorkspacesResult{}, fmt.Errorf("prompt hash mismatch for %s", personaID)
+		}
+
+		answerPersonaDir := storage.AnswerPersonaDir(runRoot, personaID)
+		snapshotAgentsPath, err := storage.AnswerPersonaArtifactPath(runRoot, personaID, workspaceAgentsArtifactName)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve stage2 agents snapshot path for %s: %w", personaID, err)
+		}
+		snapshotPromptPath, err := storage.AnswerPersonaArtifactPath(runRoot, personaID, inputPromptArtifactName)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve stage2 prompt snapshot path for %s: %w", personaID, err)
+		}
+		outgoingInputPath, err := storage.AnswerPersonaArtifactPath(runRoot, personaID, outgoingInputArtifactName)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve outgoing_input path for %s: %w", personaID, err)
+		}
+
+		if err := storage.WriteText(snapshotAgentsPath, string(agentsBytes)); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write stage2 agents snapshot for %s: %w", personaID, err)
+		}
+		if err := storage.WriteText(snapshotPromptPath, string(promptBytes)); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write stage2 prompt snapshot for %s: %w", personaID, err)
+		}
+		agentsSHA, err = panelhash.SHA256HexFile(snapshotAgentsPath)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("hash stage2 agents snapshot for %s: %w", personaID, err)
+		}
+		if agentsSHA != hashLedger.AgentsSHA256 {
+			return SealWorkspacesResult{}, fmt.Errorf("stage2 agents snapshot hash mismatch for %s", personaID)
+		}
+		promptSHA, err = panelhash.SHA256HexFile(snapshotPromptPath)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("hash stage2 prompt snapshot for %s: %w", personaID, err)
+		}
+		if promptSHA != hashLedger.PromptSHA256 {
+			return SealWorkspacesResult{}, fmt.Errorf("stage2 prompt snapshot hash mismatch for %s", personaID)
+		}
+
+		isolatedRoot, err := resolvePathLoose(filepath.Join(isolatedBaseDir, runID, personaID))
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("resolve isolated root for %s: %w", personaID, err)
+		}
+		if err := ensureOutsideRestrictedTrees(isolatedRoot, repoRoot, runRoot, homeDir); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("validate isolated root for %s: %w", personaID, err)
+		}
+
+		isolatedWorkspaceDir := filepath.Join(isolatedRoot, "workspace")
+		isolatedInputDir := filepath.Join(isolatedRoot, "input")
+		isolatedSkillDir := filepath.Join(isolatedRoot, "skill")
+		isolatedHomeDir := filepath.Join(isolatedRoot, "home")
+		for _, dirPath := range []string{isolatedWorkspaceDir, isolatedInputDir, isolatedSkillDir, isolatedHomeDir} {
+			if err := os.MkdirAll(dirPath, 0o755); err != nil {
+				return SealWorkspacesResult{}, fmt.Errorf("create isolated directory %s for %s: %w", dirPath, personaID, err)
+			}
+		}
+
+		isolatedAgentsPath := filepath.Join(isolatedWorkspaceDir, "AGENTS.md")
+		isolatedPromptPath := filepath.Join(isolatedInputDir, "prompt.txt")
+		isolatedSkillPath := filepath.Join(isolatedSkillDir, "SKILL.md")
+		if err := writeFileAtomic(isolatedAgentsPath, agentsBytes); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write isolated agents for %s: %w", personaID, err)
+		}
+		if err := writeFileAtomic(isolatedPromptPath, promptBytes); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write isolated prompt for %s: %w", personaID, err)
+		}
+		if err := writeFileAtomic(isolatedSkillPath, skillBytes); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write isolated skill for %s: %w", personaID, err)
+		}
+
+		combinedSHA := lengthPrefixedSHA256Hex(agentsBytes, promptBytes, skillBytes)
+		outgoing := outgoingInputRecord{
+			SchemaVersion:             answerOutgoingInputSchemaV1,
+			Stage:                     answerStage,
+			PersonaID:                 personaID,
+			AgentInstructionsPath:     workspaceAgentsArtifactName,
+			AgentInstructionsSHA256:   agentsSHA,
+			PromptPath:                inputPromptArtifactName,
+			PromptSHA256:              promptSHA,
+			SkillPath:                 skillRepoRelativePath,
+			SkillSHA256:               skillSHA,
+			SourceDispatchInputSHA256: hashLedger.DispatchInputSHA256,
+			CombinedInputSHA256:       combinedSHA,
+		}
+
+		if err := storage.WriteJSON(outgoingInputPath, outgoing); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("write outgoing_input.json for %s: %w", personaID, err)
+		}
+
+		result.Workspaces = append(result.Workspaces, SealedPersonaWorkspace{
+			PersonaID:           personaID,
+			RunRoot:             runRoot,
+			RunPersonaDir:       answerPersonaDir,
+			OutgoingInputPath:   outgoingInputPath,
+			IsolatedRoot:        isolatedRoot,
+			CWD:                 isolatedWorkspaceDir,
+			HomeDir:             isolatedHomeDir,
+			WorkspaceAgentsPath: isolatedAgentsPath,
+			PromptPath:          isolatedPromptPath,
+			SkillPath:           isolatedSkillPath,
+		})
+	}
+
+	return result, nil
+}
+
+func parsePrepareGateStatus(data []byte) (prepareGateStatus, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return prepareGateStatus{}, err
+	}
+
+	canProceedRaw, ok := raw["can_proceed_to_stage2"]
+	if !ok {
+		return prepareGateStatus{}, errors.New("missing can_proceed_to_stage2")
+	}
+	personaIDsRaw, ok := raw["persona_ids"]
+	if !ok {
+		return prepareGateStatus{}, errors.New("missing persona_ids")
+	}
+
+	var canProceed bool
+	if err := json.Unmarshal(canProceedRaw, &canProceed); err != nil {
+		return prepareGateStatus{}, fmt.Errorf("decode can_proceed_to_stage2: %w", err)
+	}
+
+	var personaIDs []string
+	if err := json.Unmarshal(personaIDsRaw, &personaIDs); err != nil {
+		return prepareGateStatus{}, fmt.Errorf("decode persona_ids: %w", err)
+	}
+
+	seen := make(map[string]struct{}, len(personaIDs))
+	for _, personaID := range personaIDs {
+		if strings.TrimSpace(personaID) == "" {
+			return prepareGateStatus{}, errors.New("blank persona_id in gate artifact")
+		}
+		if _, ok := seen[personaID]; ok {
+			return prepareGateStatus{}, fmt.Errorf("duplicate persona_id %q in gate artifact", personaID)
+		}
+		seen[personaID] = struct{}{}
+	}
+
+	return prepareGateStatus{
+		CanProceedToStage2: canProceed,
+		PersonaIDs:         personaIDs,
+	}, nil
+}
+
+func parsePrepareHashLedger(data []byte) (prepareHashLedger, error) {
+	expectedKeys := map[string]struct{}{
+		"dispatch_input_sha256": {},
+		"agents_sha256":         {},
+		"prompt_sha256":         {},
+		"bundle_sha256":         {},
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return prepareHashLedger{}, err
+	}
+	if len(raw) != len(expectedKeys) {
+		return prepareHashLedger{}, errors.New("hash ledger key set mismatch")
+	}
+	for key := range raw {
+		if _, ok := expectedKeys[key]; !ok {
+			return prepareHashLedger{}, fmt.Errorf("unexpected hash ledger key %q", key)
+		}
+	}
+
+	var ledger prepareHashLedger
+	if err := json.Unmarshal(data, &ledger); err != nil {
+		return prepareHashLedger{}, err
+	}
+	if ledger.DispatchInputSHA256 == "" || ledger.AgentsSHA256 == "" || ledger.PromptSHA256 == "" || ledger.BundleSHA256 == "" {
+		return prepareHashLedger{}, errors.New("hash ledger contains empty value")
+	}
+
+	return ledger, nil
+}
+
+func parseOutgoingInputRecord(data []byte) (outgoingInputRecord, error) {
+	var record outgoingInputRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return outgoingInputRecord{}, err
+	}
+	if record.SchemaVersion != answerOutgoingInputSchemaV1 {
+		return outgoingInputRecord{}, fmt.Errorf("unexpected schema_version %q", record.SchemaVersion)
+	}
+	if record.Stage != answerStage {
+		return outgoingInputRecord{}, fmt.Errorf("unexpected stage %q", record.Stage)
+	}
+	if record.AgentInstructionsPath != workspaceAgentsArtifactName {
+		return outgoingInputRecord{}, fmt.Errorf("unexpected agent_instructions_path %q", record.AgentInstructionsPath)
+	}
+	if record.PromptPath != inputPromptArtifactName {
+		return outgoingInputRecord{}, fmt.Errorf("unexpected prompt_path %q", record.PromptPath)
+	}
+	if strings.TrimSpace(record.PersonaID) == "" {
+		return outgoingInputRecord{}, errors.New("missing persona_id")
+	}
+	if strings.TrimSpace(record.SkillPath) == "" {
+		return outgoingInputRecord{}, errors.New("missing skill_path")
+	}
+	if strings.TrimSpace(record.AgentInstructionsSHA256) == "" ||
+		strings.TrimSpace(record.PromptSHA256) == "" ||
+		strings.TrimSpace(record.SkillSHA256) == "" ||
+		strings.TrimSpace(record.SourceDispatchInputSHA256) == "" ||
+		strings.TrimSpace(record.CombinedInputSHA256) == "" {
+		return outgoingInputRecord{}, errors.New("missing seal-chain hash")
+	}
+	return record, nil
+}
+
+func runIDFromRunRoot(runRoot string) (string, error) {
+	runID := filepath.Base(filepath.Clean(runRoot))
+	if runID == "" || runID == "." || runID == string(filepath.Separator) {
+		return "", fmt.Errorf("unable to derive run_id from %q", runRoot)
+	}
+	return runID, nil
+}
+
+func resolveFileWithinRoot(root, candidate string) (string, string, error) {
+	if strings.TrimSpace(candidate) == "" {
+		return "", "", errors.New("empty file path")
+	}
+
+	joined := candidate
+	if !filepath.IsAbs(joined) {
+		joined = filepath.Join(root, candidate)
+	}
+
+	resolved, err := resolvePathLoose(joined)
+	if err != nil {
+		return "", "", err
+	}
+	if !pathWithinRoot(root, resolved) {
+		return "", "", fmt.Errorf("%q resolves outside %q", candidate, root)
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", "", fmt.Errorf("%q is not a regular file", resolved)
+	}
+
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil {
+		return "", "", err
+	}
+	if strings.HasPrefix(rel, "..") {
+		return "", "", fmt.Errorf("%q is outside %q", resolved, root)
+	}
+
+	return resolved, filepath.ToSlash(rel), nil
+}
+
+func ensureOutsideRestrictedTrees(candidate string, repoRoot string, runRoot string, homeDir string) error {
+	for _, restricted := range []string{repoRoot, runRoot, homeDir} {
+		if restricted == "" {
+			continue
+		}
+		if pathWithinRoot(restricted, candidate) {
+			return fmt.Errorf("%q resolves under restricted tree %q", candidate, restricted)
+		}
+	}
+	return nil
+}
+
+func pathWithinRoot(root string, candidate string) bool {
+	root = filepath.Clean(root)
+	candidate = filepath.Clean(candidate)
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+func resolvePathLoose(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("empty path")
+	}
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	absolutePath = filepath.Clean(absolutePath)
+
+	current := absolutePath
+	suffix := make([]string, 0, 4)
+	for {
+		resolvedCurrent, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			resolved := resolvedCurrent
+			for i := len(suffix) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, suffix[i])
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return absolutePath, nil
+		}
+		suffix = append(suffix, filepath.Base(current))
+		current = parent
+	}
+}
+
+func currentUserHomeDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err == nil && strings.TrimSpace(home) != "" {
+		return resolvePathLoose(home)
+	}
+	if envHome := strings.TrimSpace(os.Getenv("HOME")); envHome != "" {
+		return resolvePathLoose(envHome)
+	}
+	return "", errors.New("unable to determine current user home")
+}
+
+func readRegularFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%q is not a regular file", path)
+	}
+	return os.ReadFile(path)
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Chmod(0o644); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+
+	success = true
+	return nil
+}
+
+func lengthPrefixedSHA256Hex(parts ...[]byte) string {
+	buffer := bytes.NewBuffer(nil)
+	lengthBuffer := make([]byte, 8)
+	for _, part := range parts {
+		binary.BigEndian.PutUint64(lengthBuffer, uint64(len(part)))
+		buffer.Write(lengthBuffer)
+		buffer.Write(part)
+	}
+	return panelhash.SHA256Hex(buffer.Bytes())
+}

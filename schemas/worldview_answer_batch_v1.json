@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worldview_answer_batch_v1.json",
+  "title": "Worldview Answer Batch V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stage",
+    "run_id",
+    "max_concurrency",
+    "worker_timeout_ms",
+    "max_attempts_per_persona",
+    "forbidden_tool_names",
+    "counts",
+    "certified",
+    "failed",
+    "rejected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "worldview_answer_batch_v1"
+    },
+    "stage": {
+      "const": "02_answer"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_concurrency": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "worker_timeout_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "max_attempts_per_persona": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "forbidden_tool_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_personas",
+        "certified",
+        "failed",
+        "rejected"
+      ],
+      "properties": {
+        "total_personas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "certified": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "certified": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "persona_id",
+          "outcome",
+          "attempt_count",
+          "status_path",
+          "attestation_path",
+          "result_json_path",
+          "result_json_sha256",
+          "authoritative_text_sha256"
+        ],
+        "properties": {
+          "persona_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "const": "certified"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attestation_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result_json_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result_json_sha256": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authoritative_text_sha256": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "failed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "persona_id",
+          "outcome",
+          "attempt_count",
+          "failure_reason",
+          "status_path",
+          "attestation_path",
+          "result_json_path",
+          "runner_terminal_outcome",
+          "last_reached_phase",
+          "close_outcome_kind"
+        ],
+        "properties": {
+          "persona_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "const": "failed"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failure_reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attestation_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result_json_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runner_terminal_outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_reached_phase": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "close_outcome_kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "rejected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "persona_id",
+          "outcome",
+          "attempt_count",
+          "rejection_reason",
+          "status_path",
+          "attestation_path",
+          "result_json_path",
+          "result_json_sha256",
+          "authoritative_text_sha256",
+          "forbidden_tool_hits"
+        ],
+        "properties": {
+          "persona_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "const": "rejected"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rejection_reason": {
+            "const": "forbidden_tool"
+          },
+          "status_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attestation_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result_json_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result_json_sha256": {
+            "type": "string",
+            "minLength": 1
+          },
+          "authoritative_text_sha256": {
+            "type": "string",
+            "minLength": 1
+          },
+          "forbidden_tool_hits": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tool_name",
+                "tool_name_normalized",
+                "call_id"
+              ],
+              "properties": {
+                "tool_name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tool_name_normalized": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "call_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

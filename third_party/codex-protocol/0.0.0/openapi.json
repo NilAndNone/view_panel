@@ -1,0 +1,17 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pinned Codex App-Server Contract Placeholder",
+    "version": "0.0.0",
+    "description": "Checked-in placeholder bundle for the worldview-panel bootstrap slice. Replace with live-generated protocol data when the runtime contract is regenerated."
+  },
+  "x-runtime-contract": {
+    "package": "@openai/codex",
+    "pinned_version": "0.0.0",
+    "launcher": "codex app-server --listen stdio://",
+    "placeholder": true,
+    "generated_from_live_cli": false
+  },
+  "paths": {},
+  "components": {}
+}

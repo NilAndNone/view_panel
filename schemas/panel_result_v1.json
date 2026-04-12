@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/panel_result_v1.json",
+  "title": "worldview_panel_result_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stage",
+    "variant",
+    "run_id",
+    "title",
+    "summary",
+    "sections",
+    "cards"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "worldview_panel_result_v1"
+    },
+    "stage": {
+      "const": "03_render"
+    },
+    "variant": {
+      "enum": [
+        "raw",
+        "certified"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "heading",
+          "body"
+        ],
+        "properties": {
+          "heading": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "persona_id",
+          "source_outcome",
+          "headline",
+          "body"
+        ],
+        "properties": {
+          "persona_id": {
+            "type": "string"
+          },
+          "source_outcome": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "variant": {
+            "const": "raw"
+          }
+        },
+        "required": [
+          "variant"
+        ]
+      },
+      "then": {
+        "properties": {
+          "cards": {
+            "items": {
+              "properties": {
+                "source_outcome": {
+                  "enum": [
+                    "certified",
+                    "rejected"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "variant": {
+            "const": "certified"
+          }
+        },
+        "required": [
+          "variant"
+        ]
+      },
+      "then": {
+        "properties": {
+          "cards": {
+            "items": {
+              "properties": {
+                "source_outcome": {
+                  "const": "certified"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

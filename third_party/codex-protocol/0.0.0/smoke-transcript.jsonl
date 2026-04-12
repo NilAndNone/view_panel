@@ -1,0 +1,8 @@
+{"record_type":"meta","placeholder":true,"package":"@openai/codex","pinned_version":"0.0.0","note":"Checked-in placeholder smoke transcript for bootstrap contract pinning."}
+{"direction":"client->server","message":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"worldview-panel","version":"bootstrap"}}}}
+{"direction":"server->client","message":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"placeholder","capabilities":{}}}}
+{"direction":"client->server","message":{"jsonrpc":"2.0","method":"initialized","params":{}}}
+{"direction":"client->server","message":{"jsonrpc":"2.0","id":2,"method":"configRequirements/read","params":{}}}
+{"direction":"client->server","message":{"jsonrpc":"2.0","id":3,"method":"thread/start","params":{}}}
+{"direction":"client->server","message":{"jsonrpc":"2.0","id":4,"method":"turn/start","params":{"threadId":"placeholder-thread","input":{"type":"text","text":"smoke test"}}}}
+{"direction":"server->client","message":{"jsonrpc":"2.0","method":"item/completed.agentMessage","params":{"item":{"id":"placeholder-item","text":"placeholder completion"}}}}

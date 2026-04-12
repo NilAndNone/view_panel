@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dispatch_input_v1.json",
+  "type": "object",
+  "required": [
+    "roleplay_prompt",
+    "discussion_question",
+    "supplementary_materials",
+    "output_contract",
+    "assumptions_and_constraints"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "roleplay_prompt": {
+      "type": "string"
+    },
+    "discussion_question": {
+      "type": "string"
+    },
+    "supplementary_materials": {
+      "type": "string"
+    },
+    "output_contract": {
+      "type": "string"
+    },
+    "assumptions_and_constraints": {
+      "type": "string"
+    }
+  }
+}

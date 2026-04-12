@@ -1,0 +1,39 @@
+{
+  "bundle_type": "codex-protocol-message-index",
+  "package": "@openai/codex",
+  "pinned_version": "0.0.0",
+  "placeholder": true,
+  "note": "This file is a checked-in placeholder bundle for bootstrap contract pinning.",
+  "requests": [
+    {
+      "method": "initialize",
+      "response_type": "InitializeResult"
+    },
+    {
+      "method": "configRequirements/read",
+      "response_type": "ConfigRequirementsReadResult"
+    },
+    {
+      "method": "thread/start",
+      "response_type": "ThreadStartResult"
+    },
+    {
+      "method": "turn/start",
+      "response_type": "TurnStartResult"
+    }
+  ],
+  "notifications": [
+    {
+      "method": "initialized"
+    },
+    {
+      "method": "turn/interrupt"
+    }
+  ],
+  "events": [
+    {
+      "method": "item/completed.agentMessage",
+      "terminal": true
+    }
+  ]
+}

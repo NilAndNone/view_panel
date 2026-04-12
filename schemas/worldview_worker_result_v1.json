@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worldview_worker_result_v1.json",
+  "title": "Worldview Worker Result V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "stage",
+    "persona_id",
+    "source_outgoing_input_path",
+    "source_outgoing_input_sha256",
+    "combined_input_sha256",
+    "authoritative_item_type",
+    "authoritative_item_id",
+    "text",
+    "text_sha256",
+    "authoritative_item"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "worldview_worker_result_v1"
+    },
+    "stage": {
+      "const": "02_answer"
+    },
+    "persona_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_outgoing_input_path": {
+      "const": "outgoing_input.json"
+    },
+    "source_outgoing_input_sha256": {
+      "type": "string",
+      "minLength": 1
+    },
+    "combined_input_sha256": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authoritative_item_type": {
+      "const": "item/completed.agentMessage"
+    },
+    "authoritative_item_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string"
+    },
+    "text_sha256": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authoritative_item": {
+      "type": "object"
+    }
+  }
+}
+

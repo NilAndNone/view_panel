@@ -1,0 +1,21 @@
+{
+  "bundle_type": "codex-protocol-schema-index",
+  "package": "@openai/codex",
+  "pinned_version": "0.0.0",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "placeholder": true,
+  "artifacts": [
+    {
+      "path": "openapi.json",
+      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+    },
+    {
+      "path": "messages.json",
+      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+    },
+    {
+      "path": "smoke-transcript.jsonl",
+      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+    }
+  ]
+}
