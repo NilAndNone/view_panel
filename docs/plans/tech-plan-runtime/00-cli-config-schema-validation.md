@@ -4,7 +4,7 @@ title: CLI + Config + Schema Validation
 status: ready
 depends_on: []
 consumes:
-  - docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md
+  - docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
   - docs/tech-plan-v1.md
 produces:
   - cmd/worldview-panel/main.go
@@ -23,6 +23,8 @@ Create the runtime entrypoint for worldview-panel that parses startup inputs, ap
 - Own startup command parsing and input normalization in `cmd/worldview-panel/main.go`.
 - Own startup configuration loading and defaulting in `internal/config/config.go`.
 - Own startup validation entrypoints in `internal/schema/validate.go`.
+- P00 is the product-entry plan for the retained runtime and owns the operator-facing startup contract.
+- Full-flow smoke remains out of scope here; terminal end-to-end validation belongs to `P12`.
 - Define one explicit startup contract for downstream handoff:
   `StartupConfig { question: string, materials: []string, persona_set: string, outdir: string, concurrency: int, model: string }`
 - Restrict startup validation ownership to P00 for the following checks:
@@ -57,7 +59,7 @@ Create the runtime entrypoint for worldview-panel that parses startup inputs, ap
 - Stage 2 soft/hard execution logic and render chain logic.
 
 ## Required Inputs
-- docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md
+- docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
 - docs/tech-plan-v1.md
 
 ## Implementation Tasks

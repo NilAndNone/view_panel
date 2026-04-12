@@ -5,7 +5,7 @@ status: proposed
 depends_on:
   - P04
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md
+  - docs/plans/tech-plan-runtime/04-prepare-input-builder.md
 produces:
   - internal/stage/prepare/review.go
   - runtime/skills/wv-prepare-stage/SKILL.md
@@ -117,7 +117,7 @@ Add a prepare-stage advisory review branch that inspects immutable Stage 1 artif
 
 # Required Inputs
 
-- docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md
+- docs/plans/tech-plan-runtime/04-prepare-input-builder.md
 
 # Implementation Tasks
 

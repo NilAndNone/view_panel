@@ -5,7 +5,7 @@ status: proposed
 depends_on:
   - P03
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md
+  - docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md
   - docs/tech-plan-v1.md
 produces:
   - internal/materials/loader.go
@@ -67,7 +67,7 @@ Create the canonical Stage 1 assembly path so each persona receives exactly one 
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md`
+- `docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md`
 - `docs/tech-plan-v1.md`
 
 # Implementation Tasks

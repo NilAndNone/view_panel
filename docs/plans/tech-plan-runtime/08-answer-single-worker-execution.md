@@ -7,9 +7,9 @@ depends_on:
   - P02
   - P07
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md
-  - docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md
-  - docs/plans/tech-plan-v1.1-runtime/07-answer-workspace-seal.md
+  - docs/plans/tech-plan-runtime/01-codex-runtime-contract.md
+  - docs/plans/tech-plan-runtime/02-app-server-client-lifecycle.md
+  - docs/plans/tech-plan-runtime/07-answer-workspace-seal.md
 produces:
   - runtime/skills/wv-answer-stage/SKILL.md
   - internal/stage/answer/runner.go
@@ -35,6 +35,7 @@ Execute exactly one sealed answer worker for exactly one persona workspace and p
   - `runtime/skills/wv-answer-stage/SKILL.md`
   - this skill belongs here, not in P07 or any earlier plan
   - P07 may copy the selected skill bytes into the isolated workspace, but P08 owns the skill wording and the execution semantics that depend on it
+  - the retained runtime plan set must keep `runtime/skills/wv-answer-stage/SKILL.md` ownership here even as later plans add smoke or operator tooling
 - P08 owns only one sealed worker execution in `internal/stage/answer/runner.go`:
   - consume one sealed persona workspace prepared by P07
   - launch one app-server client through P02
@@ -74,9 +75,9 @@ Execute exactly one sealed answer worker for exactly one persona workspace and p
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md`
-- `docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md`
-- `docs/plans/tech-plan-v1.1-runtime/07-answer-workspace-seal.md`
+- `docs/plans/tech-plan-runtime/01-codex-runtime-contract.md`
+- `docs/plans/tech-plan-runtime/02-app-server-client-lifecycle.md`
+- `docs/plans/tech-plan-runtime/07-answer-workspace-seal.md`
 
 # Implementation Tasks
 

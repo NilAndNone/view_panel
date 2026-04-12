@@ -6,8 +6,8 @@ depends_on:
   - P02
   - P10
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md
-  - docs/plans/tech-plan-v1.1-runtime/10-render-input-aggregation.md
+  - docs/plans/tech-plan-runtime/02-app-server-client-lifecycle.md
+  - docs/plans/tech-plan-runtime/10-render-input-aggregation.md
 produces:
   - internal/stage/render/render.go
   - runtime/skills/wv-render-stage/SKILL.md
@@ -71,8 +71,8 @@ Execute the terminal Stage 3 render stage from the P10-owned render-input artifa
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md`
-- `docs/plans/tech-plan-v1.1-runtime/10-render-input-aggregation.md`
+- `docs/plans/tech-plan-runtime/02-app-server-client-lifecycle.md`
+- `docs/plans/tech-plan-runtime/10-render-input-aggregation.md`
 - current-run `runs/<run_id>/03_render/raw_render_input.json`
 - current-run `runs/<run_id>/03_render/certified_render_input.json`
 
@@ -263,6 +263,7 @@ Execute the terminal Stage 3 render stage from the P10-owned render-input artifa
 # Handoff
 
 - P11 is the terminal runtime stage.
+- P12 consumes the completed Stage 3 boundary from P11 through `make build`, `make smoke`, and `make smoke-check`; P12 validates the operated full-flow path without redefining render semantics.
 - Downstream operators or tools should read only:
   - `runs/<run_id>/03_render/raw_panel.json`
   - `runs/<run_id>/03_render/raw_panel.md`

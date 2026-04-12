@@ -6,9 +6,9 @@ depends_on:
   - P03
   - P05
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md
-  - docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md
-  - docs/plans/tech-plan-v1.1-runtime/05-prepare-hard-gate.md
+  - docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md
+  - docs/plans/tech-plan-runtime/04-prepare-input-builder.md
+  - docs/plans/tech-plan-runtime/05-prepare-hard-gate.md
 produces:
   - internal/stage/answer/workspace.go
   - runs/<run_id>/02_answer/personas/<persona_id>/workspace/AGENTS.md
@@ -109,11 +109,13 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
   - required execution environment values returned by P07 are:
     - `cwd = <isolated_root>/workspace`
     - `HOME = <isolated_root>/home`
+    - `CODEX_HOME = <isolated_root>/home/.codex`
   - the isolated workspace must use real directories and regular copied files only; no symlink, bind, or path alias back into the repo tree, `<run_root>`, or the user home may be used.
 - AGENTS contamination must be blocked by construction:
   - repo-root `AGENTS.md` must be unreachable by ancestor traversal from the worker `cwd` because `cwd` is outside the repo tree.
   - home-tree `AGENTS.md` contamination must be unreachable by ancestor traversal from the worker `cwd` because `<isolated_root>` itself is outside the current user HOME tree.
   - `~/.codex/AGENTS.md` contamination must be blocked because the worker `HOME` is the isolated `home/` directory, not the user home.
+  - `CODEX_HOME` must resolve under `<isolated_root>/home/.codex` so user-level Codex state cannot leak into persona execution.
   - inside the isolated workspace, the intended worker instructions file is `<isolated_root>/workspace/AGENTS.md`; P07 must not create any additional parent-level `AGENTS.md` file under `<isolated_root>`.
 - P07 is strictly pre-execution:
   - do not launch a worker.
@@ -132,9 +134,9 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md`
-- `docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md`
-- `docs/plans/tech-plan-v1.1-runtime/05-prepare-hard-gate.md`
+- `docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md`
+- `docs/plans/tech-plan-runtime/04-prepare-input-builder.md`
+- `docs/plans/tech-plan-runtime/05-prepare-hard-gate.md`
 
 # Implementation Tasks
 

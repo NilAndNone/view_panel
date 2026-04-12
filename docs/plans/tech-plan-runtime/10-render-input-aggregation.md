@@ -6,8 +6,8 @@ depends_on:
   - P03
   - P09
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md
-  - docs/plans/tech-plan-v1.1-runtime/09-answer-batch-orchestration.md
+  - docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md
+  - docs/plans/tech-plan-runtime/09-answer-batch-orchestration.md
 produces:
   - internal/stage/render/aggregate.go
   - runs/<run_id>/03_render/raw_render_input.json
@@ -36,6 +36,10 @@ Aggregate the current-run Stage 2 answer batch into two explicit Stage 3 render-
 - P10 writes two Stage 3 contracts under `runs/<run_id>/03_render/`:
   - `raw_render_input.json`
   - `certified_render_input.json`
+- The raw/certified split is permanent:
+  - raw input exists to preserve visibility into displayable-but-not-certified output
+  - certified input exists to preserve the trusted branch only
+  - no later plan may collapse these contracts back into a single render-input path
 - Both render-input files must carry enough data for P11 to render without reopening Stage 2:
   - each displayable entry carries the parsed authoritative `result.json` payload under `result`
   - each displayable entry also carries provenance fields copied from P09 (`persona_id`, `source_outcome`, `result_json_path`, `result_json_sha256`, `authoritative_text_sha256`, plus rejection metadata when applicable)
@@ -77,8 +81,8 @@ Aggregate the current-run Stage 2 answer batch into two explicit Stage 3 render-
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md`
-- `docs/plans/tech-plan-v1.1-runtime/09-answer-batch-orchestration.md`
+- `docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md`
+- `docs/plans/tech-plan-runtime/09-answer-batch-orchestration.md`
 - current-run `runs/<run_id>/02_answer/answer_batch.json`
 
 # Implementation Tasks

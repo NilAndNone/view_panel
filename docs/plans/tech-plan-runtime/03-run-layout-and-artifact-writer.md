@@ -4,7 +4,7 @@ title: Run Layout + Artifact Writer
 status: ready
 depends_on: []
 consumes:
-  - docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md
+  - docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
   - docs/tech-plan-v1.md
 produces:
   - internal/storage/layout.go
@@ -84,7 +84,7 @@ Create a deterministic, stage-agnostic filesystem foundation so all downstream r
 
 # Required Inputs
 
-- `docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md`
+- `docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md`
 - `docs/tech-plan-v1.md`
 
 # Implementation Tasks

@@ -6,8 +6,8 @@ depends_on:
   - P03
   - P04
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md
-  - docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md
+  - docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md
+  - docs/plans/tech-plan-runtime/04-prepare-input-builder.md
 produces:
   - internal/stage/prepare/gate.go
   - schemas/prepare_gate_status_v1.json
@@ -55,8 +55,8 @@ Implement a deterministic, Go-only hard gate that blocks Stage 2 if and only if 
 
 # Required Inputs
 
-- docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md
-- docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md
+- docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md
+- docs/plans/tech-plan-runtime/04-prepare-input-builder.md
 
 # Implementation Tasks
 

@@ -1,14 +1,14 @@
 {
-  "plan_set_id": "tech-plan-v1.1-runtime",
-  "source": "docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md",
-  "last_updated": "2026-04-11",
+  "plan_set_id": "tech-plan-runtime",
+  "source": "docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md",
+  "last_updated": "2026-04-12",
   "plans": [
     {
       "plan_id": "P00",
       "title": "CLI + Config + Schema Validation",
       "status": "ready",
       "depends_on": [],
-      "path": "docs/plans/tech-plan-v1.1-runtime/00-cli-config-schema-validation.md",
+      "path": "docs/plans/tech-plan-runtime/00-cli-config-schema-validation.md",
       "produces": [
         "cmd/worldview-panel/main.go",
         "internal/config/config.go",
@@ -20,7 +20,7 @@
       "title": "Codex Runtime Contract",
       "status": "ready",
       "depends_on": [],
-      "path": "docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md",
+      "path": "docs/plans/tech-plan-runtime/01-codex-runtime-contract.md",
       "produces": [
         "docs/operations/codex-runtime-contract.md",
         "third_party/codex-protocol/"
@@ -31,7 +31,7 @@
       "title": "App-Server Client Lifecycle",
       "status": "proposed",
       "depends_on": ["P00", "P01"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/02-app-server-client-lifecycle.md",
+      "path": "docs/plans/tech-plan-runtime/02-app-server-client-lifecycle.md",
       "produces": [
         "internal/appserver/client.go",
         "internal/appserver/messages.go",
@@ -43,7 +43,7 @@
       "title": "Run Layout + Artifact Writer",
       "status": "ready",
       "depends_on": [],
-      "path": "docs/plans/tech-plan-v1.1-runtime/03-run-layout-and-artifact-writer.md",
+      "path": "docs/plans/tech-plan-runtime/03-run-layout-and-artifact-writer.md",
       "produces": [
         "internal/storage/layout.go",
         "internal/hash/hash.go"
@@ -54,7 +54,7 @@
       "title": "Prepare Input Builder",
       "status": "proposed",
       "depends_on": ["P03"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/04-prepare-input-builder.md",
+      "path": "docs/plans/tech-plan-runtime/04-prepare-input-builder.md",
       "produces": [
         "internal/materials/loader.go",
         "internal/persona/library.go",
@@ -67,7 +67,7 @@
       "title": "Prepare Hard Gate",
       "status": "proposed",
       "depends_on": ["P03", "P04"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/05-prepare-hard-gate.md",
+      "path": "docs/plans/tech-plan-runtime/05-prepare-hard-gate.md",
       "produces": [
         "internal/stage/prepare/gate.go",
         "schemas/prepare_gate_status_v1.json",
@@ -79,7 +79,7 @@
       "title": "Prepare Soft Review",
       "status": "proposed",
       "depends_on": ["P04"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/06-prepare-soft-review.md",
+      "path": "docs/plans/tech-plan-runtime/06-prepare-soft-review.md",
       "produces": [
         "internal/stage/prepare/review.go",
         "runtime/skills/wv-prepare-stage/SKILL.md",
@@ -92,7 +92,7 @@
       "title": "Answer Workspace Seal",
       "status": "proposed",
       "depends_on": ["P03", "P05"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/07-answer-workspace-seal.md",
+      "path": "docs/plans/tech-plan-runtime/07-answer-workspace-seal.md",
       "produces": [
         "internal/stage/answer/workspace.go",
         "runs/<run_id>/02_answer/personas/<persona_id>/workspace/AGENTS.md",
@@ -105,7 +105,7 @@
       "title": "Answer Single Worker Execution",
       "status": "proposed",
       "depends_on": ["P01", "P02", "P07"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/08-answer-single-worker-execution.md",
+      "path": "docs/plans/tech-plan-runtime/08-answer-single-worker-execution.md",
       "produces": [
         "runtime/skills/wv-answer-stage/SKILL.md",
         "internal/stage/answer/runner.go",
@@ -121,7 +121,7 @@
       "title": "Answer Batch Orchestration",
       "status": "ready",
       "depends_on": ["P08"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/09-answer-batch-orchestration.md",
+      "path": "docs/plans/tech-plan-runtime/09-answer-batch-orchestration.md",
       "produces": [
         "internal/stage/answer/batch.go",
         "internal/orchestrator/run.go",
@@ -134,7 +134,7 @@
       "title": "Render Input Aggregation",
       "status": "ready",
       "depends_on": ["P03", "P09"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/10-render-input-aggregation.md",
+      "path": "docs/plans/tech-plan-runtime/10-render-input-aggregation.md",
       "produces": [
         "internal/stage/render/aggregate.go",
         "runs/<run_id>/03_render/raw_render_input.json",
@@ -146,7 +146,7 @@
       "title": "Render Outputs",
       "status": "ready",
       "depends_on": ["P02", "P10"],
-      "path": "docs/plans/tech-plan-v1.1-runtime/11-render-outputs.md",
+      "path": "docs/plans/tech-plan-runtime/11-render-outputs.md",
       "produces": [
         "internal/stage/render/render.go",
         "runtime/skills/wv-render-stage/SKILL.md",
@@ -158,6 +158,20 @@
         "runs/<run_id>/03_render/certified_panel.md",
         "runs/<run_id>/03_render/certified_cards.json",
         "runs/<run_id>/03_render/status.json"
+      ]
+    },
+    {
+      "plan_id": "P12",
+      "title": "End-to-End Smoke + Makefile Flow",
+      "status": "ready",
+      "depends_on": ["P11"],
+      "path": "docs/plans/tech-plan-runtime/12-end-to-end-smoke-and-makefile-flow.md",
+      "produces": [
+        "Makefile",
+        "tools/smokecheck/main.go",
+        "testdata/smoke/materials/",
+        "testdata/smoke/runtime/",
+        "docs/operations/runtime-smoke-and-release-checklist.md"
       ]
     }
   ]

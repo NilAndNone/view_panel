@@ -36,7 +36,7 @@ Do not treat the root as a pending `tech-plan-v1` execution workspace anymore.
 
 The retained planning reference now lives under:
 
-- `docs/plans/tech-plan-v1.1-runtime/`
+- `docs/plans/tech-plan-runtime/`
 
 Earlier execution-plan artifacts were pruned. They are no longer part of the repository-level dispatch contract.
 
@@ -47,8 +47,8 @@ For the current codebase, use this order:
 1. actual code under `cmd/`, `internal/`, `runtime/skills/`, `schemas/`
 2. `README.md`
 3. `docs/operations/codex-runtime-contract.md`
-4. `docs/plans/tech-plan-v1.1-runtime/`
-5. `docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md`
+4. `docs/plans/tech-plan-runtime/`
+5. `docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md`
 
 If code and plan docs disagree, prefer the code, then update the docs deliberately.
 
@@ -245,4 +245,4 @@ If you are continuing implementation, read in this order:
 2. `README.md`
 3. `docs/operations/codex-runtime-contract.md`
 4. the specific package you are changing
-5. only then the corresponding plan doc under `docs/plans/tech-plan-v1.1-runtime/` if needed
+5. only then the corresponding plan doc under `docs/plans/tech-plan-runtime/` if needed

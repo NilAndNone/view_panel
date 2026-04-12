@@ -5,7 +5,7 @@ status: ready
 depends_on: []
 consumes:
   - docs/tech-plan-v1.md
-  - docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md
+  - docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
 produces:
   - docs/operations/codex-runtime-contract.md
   - third_party/codex-protocol/
@@ -42,7 +42,7 @@ Define the canonical Codex runtime contract used by all v1.1 runtime stages.
 # Required Inputs
 
 - docs/tech-plan-v1.md
-- docs/superpowers/specs/2026-04-11-tech-plan-v1-1-runtime-redesign-design.md
+- docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
 
 # Implementation Tasks
 

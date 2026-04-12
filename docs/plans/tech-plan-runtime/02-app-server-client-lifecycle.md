@@ -6,8 +6,8 @@ depends_on:
   - P00
   - P01
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/00-cli-config-schema-validation.md
-  - docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md
+  - docs/plans/tech-plan-runtime/00-cli-config-schema-validation.md
+  - docs/plans/tech-plan-runtime/01-codex-runtime-contract.md
 produces:
   - internal/appserver/client.go
   - internal/appserver/messages.go
@@ -52,8 +52,8 @@ Implement a thin, runtime-only JSON-RPC lifecycle for exactly one Codex app-serv
 - Transcript/artifact persistence and operator-visibility file emission.
 
 # Required Inputs
-- docs/plans/tech-plan-v1.1-runtime/00-cli-config-schema-validation.md
-- docs/plans/tech-plan-v1.1-runtime/01-codex-runtime-contract.md
+- docs/plans/tech-plan-runtime/00-cli-config-schema-validation.md
+- docs/plans/tech-plan-runtime/01-codex-runtime-contract.md
 
 # Implementation Tasks
 1. In `internal/appserver/messages.go`, define transport-contract types only for required lifecycle methods and terminal completion:

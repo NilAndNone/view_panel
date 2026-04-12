@@ -5,7 +5,7 @@ status: ready
 depends_on:
   - P08
 consumes:
-  - docs/plans/tech-plan-v1.1-runtime/08-answer-single-worker-execution.md
+  - docs/plans/tech-plan-runtime/08-answer-single-worker-execution.md
 produces:
   - internal/stage/answer/batch.go
   - internal/orchestrator/run.go
@@ -54,7 +54,7 @@ Execute the full Stage 2 answer batch over all sealed personas, keep all multi-w
 
 # Required Inputs
 
-- `docs/plans/tech-plan-v1.1-runtime/08-answer-single-worker-execution.md`
+- `docs/plans/tech-plan-runtime/08-answer-single-worker-execution.md`
 
 # Implementation Tasks
 
