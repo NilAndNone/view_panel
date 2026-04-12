@@ -48,7 +48,6 @@ For the current codebase, use this order:
 2. `README.md`
 3. `docs/operations/codex-runtime-contract.md`
 4. `docs/plans/tech-plan-runtime/`
-5. `docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md`
 
 If code and plan docs disagree, prefer the code, then update the docs deliberately.
 

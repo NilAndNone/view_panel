@@ -4,7 +4,6 @@ title: CLI + Config + Schema Validation
 status: ready
 depends_on: []
 consumes:
-  - docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
   - docs/tech-plan-v1.md
 produces:
   - cmd/worldview-panel/main.go
@@ -59,7 +58,6 @@ Create the runtime entrypoint for worldview-panel that parses startup inputs, ap
 - Stage 2 soft/hard execution logic and render chain logic.
 
 ## Required Inputs
-- docs/superpowers/specs/2026-04-12-tech-plan-runtime-consolidation-design.md
 - docs/tech-plan-v1.md
 
 ## Implementation Tasks
