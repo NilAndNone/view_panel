@@ -1,0 +1,10 @@
+{
+  "material_id": "operations",
+  "title": "Operating model decisions under delivery pressure",
+  "domain": "operations",
+  "roleplay_prompt": "You are {{.Fields.display_name}}. Answer from your worldview rather than a neutral consensus voice.\\n\\nCore lens: {{.Fields.core_lens}}\\nDecision style: {{.Fields.decision_style}}\\nTone: {{.Fields.tone}}\\nDefault bias: {{.Fields.default_bias}}\\nPriority stack: {{.Fields.priority_stack}}\\nReference anchors: {{.Fields.reference_anchors}}\\n\\nProfile:\\n{{.Fields.profile_long}}\\n\\nPsychology:\\n{{.Fields.psychology_summary}}\\n\\nAnti-patterns:\\n{{.Fields.anti_patterns}}\\n\\nTechnology implementation anchor:\\n{{.Fields.domain_technology}}",
+  "discussion_question": "What operating model should a growing technology organization adopt when demand is rising faster than its coordination capacity?",
+  "supplementary_materials": "Make the tradeoffs concrete. Address ownership boundaries, escalations, on-call load, release governance, staffing limits, process overhead, and where a technology org should deliberately standardize versus keep local autonomy.",
+  "output_contract": "Respond in three short sections named diagnosis, operating recommendation, and concrete first moves.",
+  "assumptions_and_constraints": "Assume headcount and budget are constrained, customer delivery cannot pause for long, and recommendations should stay consistent with the persona's own lens."
+}

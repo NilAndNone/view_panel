@@ -47,6 +47,8 @@ type Client struct {
 
 	events chan ClientMessage
 
+	currentWorkingDirectory string
+
 	stateMu     sync.Mutex
 	started     bool
 	closing     bool
@@ -68,6 +70,7 @@ type Client struct {
 
 type ClientMessage struct {
 	Event                      JSONRPCEventEnvelope
+	TurnCompletedEvent         *TurnCompletedEventParams
 	AgentMessageCompletedEvent *AgentMessageCompletedEventParams
 }
 
@@ -202,18 +205,19 @@ func StartAppServer(ctx context.Context, launchContext AppServerLaunchContext) (
 	}
 
 	client := &Client{
-		process:    cmd,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		encoder:    json.NewEncoder(stdin),
-		pending:    make(map[RequestID]chan responseResult),
-		events:     make(chan ClientMessage, eventBufferCap),
-		started:    true,
-		readerDone: make(chan struct{}),
-		waitDone:   make(chan struct{}),
-		stderrDone: make(chan struct{}),
-		exitCode:   -1,
+		process:                 cmd,
+		stdin:                   stdin,
+		stdout:                  stdout,
+		stderr:                  stderr,
+		encoder:                 json.NewEncoder(stdin),
+		pending:                 make(map[RequestID]chan responseResult),
+		events:                  make(chan ClientMessage, eventBufferCap),
+		currentWorkingDirectory: launchContext.CurrentWorkingDirectory,
+		started:                 true,
+		readerDone:              make(chan struct{}),
+		waitDone:                make(chan struct{}),
+		stderrDone:              make(chan struct{}),
+		exitCode:                -1,
 	}
 
 	go client.readLoop()
@@ -448,15 +452,38 @@ func (c *Client) makeClientMessage(envelope rawEnvelope) (ClientMessage, error) 
 		},
 	}
 
-	if envelope.Method == EventItemCompletedAgentMessage {
+	switch envelope.Method {
+	case EventTurnCompleted:
+		var completed TurnCompletedEventParams
+		if err := json.Unmarshal(envelope.Params, &completed); err != nil {
+			return ClientMessage{}, fmt.Errorf("decode %s event: %w", envelope.Method, err)
+		}
+		message.TurnCompletedEvent = &completed
+	case EventItemCompleted:
 		var completed AgentMessageCompletedEventParams
 		if err := json.Unmarshal(envelope.Params, &completed); err != nil {
 			return ClientMessage{}, fmt.Errorf("decode %s event: %w", envelope.Method, err)
 		}
-		message.AgentMessageCompletedEvent = &completed
+		if completed.IsAuthoritativeFinalAnswer() {
+			message.AgentMessageCompletedEvent = &completed
+		}
 	}
 
 	return message, nil
+}
+
+func (c *Client) threadStartCWD() string {
+	if c != nil {
+		if cwd := strings.TrimSpace(c.currentWorkingDirectory); cwd != "" {
+			return cwd
+		}
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cwd)
 }
 
 func (c *Client) finishReader(err error) {

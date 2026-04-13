@@ -1,0 +1,10 @@
+{
+  "material_id": "technology",
+  "title": "Fixture technology material",
+  "domain": "technology",
+  "roleplay_prompt": "You are {{.Fields.display_name}}. Apply {{.Fields.core_lens}} and use this domain anchor: {{.Fields.domain_technology}}",
+  "discussion_question": "What should the team optimize first?",
+  "supplementary_materials": "The team has one launch window and limited rollback confidence.",
+  "output_contract": "Return a compact operational recommendation.",
+  "assumptions_and_constraints": "Assume the current platform can only tolerate one major change at a time."
+}

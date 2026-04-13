@@ -17,6 +17,7 @@ import (
 const (
 	answerStage                     = "02_answer"
 	answerOutgoingInputSchemaV1     = "answer_outgoing_input_v1"
+	answerOutgoingInputSchemaV2     = "answer_outgoing_input_v2"
 	workerResultSchemaV1            = "worldview_worker_result_v1"
 	workerAttestationSchemaV1       = "worldview_worker_attestation_v1"
 	workerStatusSchemaV1            = "worldview_worker_status_v1"
@@ -60,6 +61,8 @@ const (
 	failureReasonResultJSONMissing  = "result_json_missing"
 	failureReasonResultArtifactMiss = "result_json_artifact_missing"
 )
+
+var inheritedCodexRuntimeFiles = [...]string{"config.toml", "auth.json"}
 
 type SealWorkspacesRequest struct {
 	RepoRoot        string
@@ -111,6 +114,7 @@ type outgoingInputRecord struct {
 	PromptSHA256              string `json:"prompt_sha256"`
 	SkillPath                 string `json:"skill_path"`
 	SkillSHA256               string `json:"skill_sha256"`
+	CodexRuntimeSHA256        string `json:"codex_runtime_sha256"`
 	SourceDispatchInputSHA256 string `json:"source_dispatch_input_sha256"`
 	CombinedInputSHA256       string `json:"combined_input_sha256"`
 }
@@ -169,7 +173,11 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 	if err != nil {
 		return SealWorkspacesResult{}, fmt.Errorf("resolve current user home: %w", err)
 	}
-	if err := ensureOutsideRestrictedTrees(isolatedBaseDir, repoRoot, runRoot, homeDir); err != nil {
+	parentCodexHomeDir, err := currentUserCodexHomeDir(homeDir)
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve current user codex home: %w", err)
+	}
+	if err := ensureOutsideRestrictedTrees(isolatedBaseDir, repoRoot, runRoot, homeDir, parentCodexHomeDir); err != nil {
 		return SealWorkspacesResult{}, fmt.Errorf("validate isolated base dir: %w", err)
 	}
 
@@ -177,8 +185,16 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 	if err != nil {
 		return SealWorkspacesResult{}, err
 	}
+	isolatedRunRoot, err := resolvePathLoose(filepath.Join(isolatedBaseDir, runID))
+	if err != nil {
+		return SealWorkspacesResult{}, fmt.Errorf("resolve isolated run root: %w", err)
+	}
 
 	for _, personaID := range gate.PersonaIDs {
+		if err := validatePersonaIDForIsolation(personaID); err != nil {
+			return SealWorkspacesResult{}, err
+		}
+
 		agentsPath, err := storage.PreparePersonaArtifactPath(runRoot, personaID, "agents.md")
 		if err != nil {
 			return SealWorkspacesResult{}, fmt.Errorf("resolve agents path for %s: %w", personaID, err)
@@ -254,12 +270,18 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 			return SealWorkspacesResult{}, fmt.Errorf("stage2 prompt snapshot hash mismatch for %s", personaID)
 		}
 
-		isolatedRoot, err := resolvePathLoose(filepath.Join(isolatedBaseDir, runID, personaID))
+		isolatedRoot, err := resolvePathLoose(filepath.Join(isolatedRunRoot, personaID))
 		if err != nil {
 			return SealWorkspacesResult{}, fmt.Errorf("resolve isolated root for %s: %w", personaID, err)
 		}
-		if err := ensureOutsideRestrictedTrees(isolatedRoot, repoRoot, runRoot, homeDir); err != nil {
+		if !pathWithinRoot(isolatedRunRoot, isolatedRoot) {
+			return SealWorkspacesResult{}, fmt.Errorf("isolated root for %s escapes %q", personaID, isolatedRunRoot)
+		}
+		if err := ensureOutsideRestrictedTrees(isolatedRoot, repoRoot, runRoot, homeDir, parentCodexHomeDir); err != nil {
 			return SealWorkspacesResult{}, fmt.Errorf("validate isolated root for %s: %w", personaID, err)
+		}
+		if err := os.RemoveAll(isolatedRoot); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("clear isolated root for %s: %w", personaID, err)
 		}
 
 		isolatedWorkspaceDir := filepath.Join(isolatedRoot, "workspace")
@@ -271,6 +293,13 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 			if err := os.MkdirAll(dirPath, 0o755); err != nil {
 				return SealWorkspacesResult{}, fmt.Errorf("create isolated directory %s for %s: %w", dirPath, personaID, err)
 			}
+		}
+		if err := copyAllowlistedCodexRuntimeFiles(parentCodexHomeDir, isolatedCodexHomeDir); err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("copy isolated codex runtime for %s: %w", personaID, err)
+		}
+		codexRuntimeSHA, err := allowlistedCodexRuntimeSHA256(isolatedCodexHomeDir)
+		if err != nil {
+			return SealWorkspacesResult{}, fmt.Errorf("hash isolated codex runtime for %s: %w", personaID, err)
 		}
 
 		isolatedAgentsPath := filepath.Join(isolatedWorkspaceDir, "AGENTS.md")
@@ -289,7 +318,7 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 		combinedSHA := lengthPrefixedSHA256Hex(agentsBytes, promptBytes, skillBytes)
 		executionEnv := sealedExecutionEnvForRoot(isolatedRoot)
 		outgoing := outgoingInputRecord{
-			SchemaVersion:             answerOutgoingInputSchemaV1,
+			SchemaVersion:             answerOutgoingInputSchemaV2,
 			Stage:                     answerStage,
 			PersonaID:                 personaID,
 			ExecutionCWD:              executionEnv.CWD,
@@ -301,6 +330,7 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 			PromptSHA256:              promptSHA,
 			SkillPath:                 skillRepoRelativePath,
 			SkillSHA256:               skillSHA,
+			CodexRuntimeSHA256:        codexRuntimeSHA,
 			SourceDispatchInputSHA256: hashLedger.DispatchInputSHA256,
 			CombinedInputSHA256:       combinedSHA,
 		}
@@ -355,6 +385,9 @@ func parsePrepareGateStatus(data []byte) (prepareGateStatus, error) {
 		if strings.TrimSpace(personaID) == "" {
 			return prepareGateStatus{}, errors.New("blank persona_id in gate artifact")
 		}
+		if err := validatePersonaIDForIsolation(personaID); err != nil {
+			return prepareGateStatus{}, err
+		}
 		if _, ok := seen[personaID]; ok {
 			return prepareGateStatus{}, fmt.Errorf("duplicate persona_id %q in gate artifact", personaID)
 		}
@@ -404,7 +437,9 @@ func parseOutgoingInputRecord(data []byte) (outgoingInputRecord, error) {
 	if err := json.Unmarshal(data, &record); err != nil {
 		return outgoingInputRecord{}, err
 	}
-	if record.SchemaVersion != answerOutgoingInputSchemaV1 {
+	switch record.SchemaVersion {
+	case answerOutgoingInputSchemaV1, answerOutgoingInputSchemaV2:
+	default:
 		return outgoingInputRecord{}, fmt.Errorf("unexpected schema_version %q", record.SchemaVersion)
 	}
 	if record.Stage != answerStage {
@@ -436,6 +471,9 @@ func parseOutgoingInputRecord(data []byte) (outgoingInputRecord, error) {
 		strings.TrimSpace(record.SkillSHA256) == "" ||
 		strings.TrimSpace(record.SourceDispatchInputSHA256) == "" ||
 		strings.TrimSpace(record.CombinedInputSHA256) == "" {
+		return outgoingInputRecord{}, errors.New("missing seal-chain hash")
+	}
+	if record.SchemaVersion == answerOutgoingInputSchemaV2 && strings.TrimSpace(record.CodexRuntimeSHA256) == "" {
 		return outgoingInputRecord{}, errors.New("missing seal-chain hash")
 	}
 	return record, nil
@@ -486,8 +524,8 @@ func resolveFileWithinRoot(root, candidate string) (string, string, error) {
 	return resolved, filepath.ToSlash(rel), nil
 }
 
-func ensureOutsideRestrictedTrees(candidate string, repoRoot string, runRoot string, homeDir string) error {
-	for _, restricted := range []string{repoRoot, runRoot, homeDir} {
+func ensureOutsideRestrictedTrees(candidate string, restrictedRoots ...string) error {
+	for _, restricted := range restrictedRoots {
 		if restricted == "" {
 			continue
 		}
@@ -552,8 +590,94 @@ func currentUserHomeDir() (string, error) {
 	return "", errors.New("unable to determine current user home")
 }
 
+func currentUserCodexHomeDir(homeDir string) (string, error) {
+	if codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME")); codexHome != "" {
+		return resolvePathLoose(codexHome)
+	}
+	if strings.TrimSpace(homeDir) == "" {
+		return "", errors.New("empty current user home")
+	}
+	return resolvePathLoose(filepath.Join(homeDir, ".codex"))
+}
+
+func copyAllowlistedCodexRuntimeFiles(parentCodexHomeDir string, isolatedCodexHomeDir string) error {
+	for _, fileName := range inheritedCodexRuntimeFiles {
+		sourcePath := filepath.Join(parentCodexHomeDir, fileName)
+		sourceBytes, err := readRegularFile(sourcePath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("read %q: %w", sourcePath, err)
+		}
+
+		targetPath := filepath.Join(isolatedCodexHomeDir, fileName)
+		if err := writeFileAtomicMode(targetPath, sourceBytes, isolatedCodexRuntimeFileMode(fileName)); err != nil {
+			return fmt.Errorf("write %q: %w", targetPath, err)
+		}
+	}
+	return nil
+}
+
+func validatePersonaIDForIsolation(personaID string) error {
+	switch {
+	case filepath.IsAbs(personaID):
+		return fmt.Errorf("invalid persona_id %q in gate artifact", personaID)
+	case personaID == "." || personaID == "..":
+		return fmt.Errorf("invalid persona_id %q in gate artifact", personaID)
+	case filepath.Base(personaID) != personaID:
+		return fmt.Errorf("invalid persona_id %q in gate artifact", personaID)
+	case strings.Contains(personaID, "/"), strings.Contains(personaID, "\\"):
+		return fmt.Errorf("invalid persona_id %q in gate artifact", personaID)
+	default:
+		return nil
+	}
+}
+
+func allowlistedCodexRuntimeSHA256(codexHomeDir string) (string, error) {
+	allowedEntries := make(map[string]struct{}, len(inheritedCodexRuntimeFiles))
+	for _, fileName := range inheritedCodexRuntimeFiles {
+		allowedEntries[fileName] = struct{}{}
+	}
+
+	entries, err := os.ReadDir(codexHomeDir)
+	if err != nil {
+		return "", fmt.Errorf("read %q: %w", codexHomeDir, err)
+	}
+	for _, entry := range entries {
+		if _, ok := allowedEntries[entry.Name()]; !ok {
+			return "", fmt.Errorf("unexpected entry in %q: %q", codexHomeDir, entry.Name())
+		}
+	}
+
+	parts := make([][]byte, 0, len(inheritedCodexRuntimeFiles)*3)
+	for _, fileName := range inheritedCodexRuntimeFiles {
+		parts = append(parts, []byte(fileName))
+
+		filePath := filepath.Join(codexHomeDir, fileName)
+		fileBytes, err := readRegularFile(filePath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				parts = append(parts, []byte{0})
+				continue
+			}
+			return "", fmt.Errorf("read %q: %w", filePath, err)
+		}
+
+		parts = append(parts, []byte{1}, fileBytes)
+	}
+	return lengthPrefixedSHA256Hex(parts...), nil
+}
+
+func isolatedCodexRuntimeFileMode(fileName string) os.FileMode {
+	if fileName == "auth.json" {
+		return 0o600
+	}
+	return 0o644
+}
+
 func readRegularFile(path string) ([]byte, error) {
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
@@ -563,7 +687,54 @@ func readRegularFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+func ensurePathHasNoSymlinkComponentsWithinRoot(root string, path string) error {
+	if strings.TrimSpace(root) == "" {
+		return errors.New("empty root")
+	}
+	if strings.TrimSpace(path) == "" {
+		return errors.New("empty path")
+	}
+
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	rootAbs = filepath.Clean(rootAbs)
+
+	current, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	current = filepath.Clean(current)
+	if !pathWithinRoot(rootAbs, current) {
+		return fmt.Errorf("%q is outside root %q", path, root)
+	}
+
+	for {
+		info, err := os.Lstat(current)
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%q traverses symlink %q", path, current)
+		}
+		if sameCleanPath(current, rootAbs) {
+			return nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return fmt.Errorf("%q is outside root %q", path, root)
+		}
+		current = parent
+	}
+}
+
 func writeFileAtomic(path string, data []byte) error {
+	return writeFileAtomicMode(path, data, 0o644)
+}
+
+func writeFileAtomicMode(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -585,7 +756,7 @@ func writeFileAtomic(path string, data []byte) error {
 		_ = tmpFile.Close()
 		return err
 	}
-	if err := tmpFile.Chmod(0o644); err != nil {
+	if err := tmpFile.Chmod(perm); err != nil {
 		_ = tmpFile.Close()
 		return err
 	}

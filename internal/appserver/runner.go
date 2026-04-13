@@ -10,12 +10,14 @@ import (
 )
 
 const (
-	interruptGraceTimeout      = 5 * time.Second
-	defaultInitializePeerName  = "view_panel"
-	interruptReasonCanceled    = "canceled"
-	interruptReasonTimedOut    = "timeout"
-	defaultTurnInputItemType   = "message"
-	defaultTurnInputItemRole   = "user"
+	interruptGraceTimeout        = 5 * time.Second
+	defaultInitializePeerName    = "view_panel"
+	defaultInitializePeerVersion = "0.0.0"
+	defaultThreadApprovalPolicy  = "never"
+	defaultThreadEphemeral       = true
+	interruptReasonCanceled      = "canceled"
+	interruptReasonTimedOut      = "timeout"
+	defaultTurnInputItemType     = "text"
 )
 
 type LifecyclePhase string
@@ -72,11 +74,35 @@ func (e *RunSingleTurnError) Error() string {
 	return strings.Join(parts, " ") + ": " + e.Message
 }
 
+type terminalTurnCompletedStateError struct {
+	ThreadID string
+	TurnID   string
+	Status   string
+	Message  string
+}
+
+func (e *terminalTurnCompletedStateError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Message == "" {
+		return fmt.Sprintf("turn/completed reported %s status without an authoritative final answer", e.Status)
+	}
+	return fmt.Sprintf("turn/completed reported %s status without an authoritative final answer: %s", e.Status, e.Message)
+}
+
+func (e *terminalTurnCompletedStateError) IsInterrupted() bool {
+	if e == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(e.Status), TurnStatusInterrupted)
+}
+
 type RunSingleTurnResult struct {
-	TerminalOutcome RunSingleTurnTerminalOutcome `json:"terminal_outcome"`
-	LastReachedPhase LifecyclePhase              `json:"last_reached_phase"`
-	ThreadID         string                      `json:"thread_id,omitempty"`
-	TurnID           string                      `json:"turn_id,omitempty"`
+	TerminalOutcome  RunSingleTurnTerminalOutcome      `json:"terminal_outcome"`
+	LastReachedPhase LifecyclePhase                    `json:"last_reached_phase"`
+	ThreadID         string                            `json:"thread_id,omitempty"`
+	TurnID           string                            `json:"turn_id,omitempty"`
 	CompletedItem    *AgentMessageCompletedEventParams `json:"completed_item,omitempty"`
 	Transcript       []ClientMessage                   `json:"transcript,omitempty"`
 	CloseOutcome     RunSingleTurnCloseOutcome         `json:"close_outcome"`
@@ -84,11 +110,11 @@ type RunSingleTurnResult struct {
 }
 
 type RunSingleTurnOptions struct {
-	Input          string         `json:"input,omitempty"`
+	Input          string          `json:"input,omitempty"`
 	InputItems     []TurnInputItem `json:"input_items,omitempty"`
-	ThreadMetadata map[string]any `json:"thread_metadata,omitempty"`
-	TurnMetadata   map[string]any `json:"turn_metadata,omitempty"`
-	RunTimeout     time.Duration  `json:"run_timeout,omitempty"`
+	ThreadMetadata map[string]any  `json:"thread_metadata,omitempty"`
+	TurnMetadata   map[string]any  `json:"turn_metadata,omitempty"`
+	RunTimeout     time.Duration   `json:"run_timeout,omitempty"`
 }
 
 func RunSingleTurn(ctx context.Context, client *Client, options RunSingleTurnOptions) (RunSingleTurnResult, error) {
@@ -117,7 +143,10 @@ func RunSingleTurn(ctx context.Context, client *Client, options RunSingleTurnOpt
 	}
 
 	initializeRaw, err := client.sendRequest(ctx, MethodInitialize, InitializeRequestParams{
-		ClientInfo: PeerInfo{Name: defaultInitializePeerName},
+		ClientInfo: PeerInfo{
+			Name:    defaultInitializePeerName,
+			Version: defaultInitializePeerVersion,
+		},
 	})
 	if err != nil {
 		return finalizePreTurnFailure(ctx, client, &result, MethodInitialize, err)
@@ -147,7 +176,10 @@ func RunSingleTurn(ctx context.Context, client *Client, options RunSingleTurnOpt
 	result.LastReachedPhase = LifecyclePhaseRequirementsRead
 
 	threadRaw, err := client.sendRequest(ctx, MethodThreadStart, ThreadStartParams{
-		Metadata: cloneMetadata(options.ThreadMetadata),
+		ApprovalPolicy: defaultThreadApprovalPolicy,
+		CWD:            client.threadStartCWD(),
+		Ephemeral:      defaultThreadEphemeral,
+		Metadata:       cloneMetadata(options.ThreadMetadata),
 	})
 	if err != nil {
 		return finalizePreTurnFailure(ctx, client, &result, MethodThreadStart, err)
@@ -184,6 +216,13 @@ func RunSingleTurn(ctx context.Context, client *Client, options RunSingleTurnOpt
 
 	completedItem, err := waitForAuthoritativeCompletion(ctx, client, &result)
 	if err != nil {
+		var terminalErr *terminalTurnCompletedStateError
+		if errors.As(err, &terminalErr) {
+			if terminalErr.IsInterrupted() {
+				return finalizeInterruptedWithClose(client, &result, EventTurnCompleted, terminalErr)
+			}
+			return finalizeFailureWithClose(client, &result, EventTurnCompleted, terminalErr)
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return finalizePostTurnInterrupt(client, &result, ctx.Err())
 		}
@@ -228,10 +267,25 @@ func finalizeCompleted(client *Client, result *RunSingleTurnResult, completedIte
 	return *result, nil
 }
 
+func finalizeInterruptedWithClose(client *Client, result *RunSingleTurnResult, method string, err error) (RunSingleTurnResult, error) {
+	result.TerminalOutcome = RunSingleTurnTerminalOutcomeInterrupted
+	result.RunError = newRunSingleTurnError(result.LastReachedPhase, method, err)
+	result.CloseOutcome = closeOutcomeFromProcessStop(client.Close(context.Background()))
+	return *result, result.RunError
+}
+
 func finalizePostTurnInterrupt(client *Client, result *RunSingleTurnResult, cause error) (RunSingleTurnResult, error) {
 	completedItem, err := waitForInterruptGrace(client, result, cause)
 	if err == nil {
 		return finalizeCompleted(client, result, completedItem)
+	}
+
+	var terminalErr *terminalTurnCompletedStateError
+	if errors.As(err, &terminalErr) {
+		if terminalErr.IsInterrupted() {
+			return finalizeInterruptedWithClose(client, result, EventTurnCompleted, terminalErr)
+		}
+		return finalizeFailureWithClose(client, result, EventTurnCompleted, terminalErr)
 	}
 
 	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, io.EOF) {
@@ -256,8 +310,8 @@ func waitForAuthoritativeCompletion(ctx context.Context, client *Client, result 
 		if message.AgentMessageCompletedEvent != nil {
 			return message.AgentMessageCompletedEvent, nil
 		}
-		if isCompletionLikeEventMethod(message.Event.Method) {
-			return nil, unexpectedTerminalEventError(result.LastReachedPhase, message.Event.Method)
+		if err := terminalTurnCompletedError(message, result); err != nil {
+			return nil, err
 		}
 	}
 }
@@ -288,9 +342,45 @@ func waitForInterruptGrace(client *Client, result *RunSingleTurnResult, cause er
 		if message.AgentMessageCompletedEvent != nil {
 			return message.AgentMessageCompletedEvent, nil
 		}
-		if isCompletionLikeEventMethod(message.Event.Method) {
-			return nil, unexpectedTerminalEventError(result.LastReachedPhase, message.Event.Method)
+		if err := terminalTurnCompletedError(message, result); err != nil {
+			return nil, err
 		}
+	}
+}
+
+func terminalTurnCompletedError(message ClientMessage, result *RunSingleTurnResult) error {
+	if message.TurnCompletedEvent == nil {
+		return nil
+	}
+
+	event := message.TurnCompletedEvent
+	threadID := strings.TrimSpace(event.ThreadID)
+	if result != nil && result.ThreadID != "" && threadID != "" && threadID != result.ThreadID {
+		return nil
+	}
+
+	turnID := event.EffectiveTurnID()
+	if result != nil && result.TurnID != "" && turnID != "" && turnID != result.TurnID {
+		return nil
+	}
+
+	switch {
+	case event.IsFailed():
+		return &terminalTurnCompletedStateError{
+			ThreadID: threadID,
+			TurnID:   turnID,
+			Status:   event.NormalizedStatus(),
+			Message:  event.ErrorMessage(),
+		}
+	case event.IsInterrupted():
+		return &terminalTurnCompletedStateError{
+			ThreadID: threadID,
+			TurnID:   turnID,
+			Status:   event.NormalizedStatus(),
+			Message:  event.ErrorMessage(),
+		}
+	default:
+		return nil
 	}
 }
 
@@ -307,7 +397,6 @@ func buildTurnInputItems(options RunSingleTurnOptions) []TurnInputItem {
 	return []TurnInputItem{
 		{
 			Type: defaultTurnInputItemType,
-			Role: defaultTurnInputItemRole,
 			Text: options.Input,
 		},
 	}
@@ -407,32 +496,9 @@ func newRunSingleTurnError(phase LifecyclePhase, method string, err error) *RunS
 	return runErr
 }
 
-func unexpectedTerminalEventError(phase LifecyclePhase, method string) *RunSingleTurnError {
-	return &RunSingleTurnError{
-		Phase:   phase,
-		Method:  method,
-		Message: fmt.Sprintf("unexpected terminal event %q", method),
-	}
-}
-
 func interruptReason(err error) string {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return interruptReasonTimedOut
 	}
 	return interruptReasonCanceled
-}
-
-func isCompletionLikeEventMethod(method string) bool {
-	if method == "" {
-		return false
-	}
-	if method == EventItemCompletedAgentMessage {
-		return true
-	}
-
-	normalized := strings.ToLower(method)
-	return strings.Contains(normalized, "completed") ||
-		strings.Contains(normalized, "finished") ||
-		strings.Contains(normalized, "failed") ||
-		strings.Contains(normalized, "terminated")
 }

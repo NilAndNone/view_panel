@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "domain-material-source-v1.schema.json",
+  "title": "Domain Material Source V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "material_id",
+    "title",
+    "domain",
+    "roleplay_prompt",
+    "discussion_question",
+    "supplementary_materials",
+    "output_contract",
+    "assumptions_and_constraints"
+  ],
+  "properties": {
+    "material_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "roleplay_prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "discussion_question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "supplementary_materials": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output_contract": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assumptions_and_constraints": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

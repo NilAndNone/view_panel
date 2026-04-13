@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "persona-source-v1.schema.json",
+  "title": "Persona Source V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "persona_id",
+    "display_name",
+    "core_lens",
+    "decision_style",
+    "tone",
+    "default_bias",
+    "priority_stack",
+    "strong_domains",
+    "reference_anchors"
+  ],
+  "properties": {
+    "persona_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "core_lens": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_style": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tone": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_bias": {
+      "type": "string",
+      "minLength": 1
+    },
+    "priority_stack": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "strong_domains": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reference_anchors": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

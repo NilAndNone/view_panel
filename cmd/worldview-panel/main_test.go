@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -204,6 +205,9 @@ func TestParseStartupParsesPolicyFlags(t *testing.T) {
 	if len(diagnostics) != 0 {
 		t.Fatalf("expected no diagnostics, got %v", diagnostics)
 	}
+	if cfg.Model != "" {
+		t.Fatalf("expected empty model when -model is omitted, got %q", cfg.Model)
+	}
 	if cfg.ReviewEnabled {
 		t.Fatalf("expected review_enabled=false")
 	}
@@ -215,6 +219,103 @@ func TestParseStartupParsesPolicyFlags(t *testing.T) {
 	}
 	if got, want := cfg.ForbiddenToolNames, []string{"shell", "web"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected forbidden_tool_names %v, got %v", want, got)
+	}
+}
+
+func TestRunEmitsInvalidCLIUsageEnvelopeForUnsupportedModel(t *testing.T) {
+	baseDir := t.TempDir()
+	materialPath := filepath.Join(baseDir, "materials.json")
+	content := `{
+  "roleplay_prompt": "roleplay",
+  "discussion_question": "question",
+  "supplementary_materials": "materials",
+  "output_contract": "contract",
+  "assumptions_and_constraints": "constraints"
+}`
+	if err := os.WriteFile(materialPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write materials file: %v", err)
+	}
+
+	var exitCode int
+	stderr := captureStderrForTest(t, func() {
+		exitCode = run([]string{
+			"-question", "What should happen?",
+			"-materials", materialPath,
+			"-persona-set", "default",
+			"-outdir", filepath.Join(baseDir, "out"),
+			"-model", "gpt-5.4",
+		})
+	})
+
+	if exitCode != 2 {
+		t.Fatalf("run returned %d, want 2", exitCode)
+	}
+
+	var envelope cliErrorEnvelope
+	if err := json.Unmarshal([]byte(stderr), &envelope); err != nil {
+		t.Fatalf("decode stderr envelope: %v; stderr=%q", err, stderr)
+	}
+	if envelope.Status != "invalid_cli_usage" {
+		t.Fatalf("status = %q, want invalid_cli_usage", envelope.Status)
+	}
+	if len(envelope.Diagnostics) != 0 {
+		t.Fatalf("diagnostics = %v, want none", envelope.Diagnostics)
+	}
+	if !strings.Contains(envelope.Error, "-model") || !strings.Contains(envelope.Error, "unsupported") {
+		t.Fatalf("error = %q, want unsupported -model message", envelope.Error)
+	}
+}
+
+func TestMainStartupRejectsUnsupportedModelBeforeOrchestration(t *testing.T) {
+	outDir := t.TempDir()
+	homeDir := filepath.Join(t.TempDir(), "home")
+	runID := "test-run"
+
+	if err := os.MkdirAll(homeDir, 0o755); err != nil {
+		t.Fatalf("mkdir home dir: %v", err)
+	}
+
+	cfg := config.StartupConfig{
+		OutDir:        outDir,
+		Concurrency:   1,
+		Model:         "gpt-5.4",
+		ReviewEnabled: true,
+	}
+
+	err := handoffValidatedStartupWithDeps(context.Background(), cfg, startupDeps{
+		newRunID:        func() string { return runID },
+		locateRepoRoot:  func() (string, error) { return "/repo", nil },
+		ensureRunLayout: storage.EnsureRunLayout,
+		checkRuntimeContract: func(string) runtimecontract.Result {
+			return runtimecontract.Result{Status: runtimecontract.StatusOK}
+		},
+		userHomeDir: func() (string, error) { return homeDir, nil },
+		chooseIsolatedBaseDir: func(string, string, string) (string, error) {
+			return filepath.Join(t.TempDir(), "isolated"), nil
+		},
+		newPrepareReviewer: func(string, []string, string) prepare.AdvisoryReviewer {
+			t.Fatalf("prepare reviewer must not be constructed when model is unsupported")
+			return nil
+		},
+		runPrepareStage: func(context.Context, config.StartupConfig, string, prepare.AdvisoryReviewer) (prepare.PrepareResult, error) {
+			t.Fatalf("prepare stage must not run when model is unsupported")
+			return prepare.PrepareResult{}, nil
+		},
+		runAnswerStage: func(context.Context, config.StartupConfig, string, string, string, string, []string) (answer.AnswerBatchResult, error) {
+			t.Fatalf("answer stage must not run when model is unsupported")
+			return answer.AnswerBatchResult{ArtifactPath: "answer_batch.json"}, nil
+		},
+		runOrchestrator: func(context.Context, orchestrator.RunRequest) (orchestrator.RunResult, error) {
+			t.Fatalf("orchestrator must not run when model is unsupported")
+			return orchestrator.RunResult{}, nil
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected startup error for unsupported model")
+	}
+	message := failureMessage(err)
+	if !strings.Contains(message, "-model") || !strings.Contains(message, "unsupported") {
+		t.Fatalf("expected unsupported model error, got %q", message)
 	}
 }
 
@@ -452,4 +553,31 @@ func readRuntimeContractStatusForTest(t *testing.T, artifactPath string) runtime
 	}
 
 	return result
+}
+
+func captureStderrForTest(t *testing.T, fn func()) string {
+	t.Helper()
+
+	original := os.Stderr
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stderr pipe: %v", err)
+	}
+
+	defer func() {
+		os.Stderr = original
+		_ = reader.Close()
+	}()
+
+	os.Stderr = writer
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close stderr writer: %v", err)
+	}
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read stderr output: %v", err)
+	}
+	return string(output)
 }

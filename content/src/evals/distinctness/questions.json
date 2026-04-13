@@ -1,0 +1,11 @@
+{
+  "schema_version": "distinctness_questions_v1",
+  "questions": [
+    {
+      "question_id": "technology_fragility",
+      "material_id": "technology",
+      "anchor_domain": "technology",
+      "question": "What should a leadership team do when a fast-growing software product is shipping quickly but accumulating operational fragility?"
+    }
+  ]
+}

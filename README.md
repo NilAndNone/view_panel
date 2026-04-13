@@ -46,6 +46,12 @@
   - P10-P11：render aggregation、final render outputs
 - `internal/appserver/`
   - P02：Codex app-server lifecycle
+- `internal/content/`
+  - rich content catalog / compile / bundle write helpers
+- `content/src/`
+  - 人格与材料的 authoring source-of-truth
+- `content/build/<bundle_id>/`
+  - 编译后的 runtime-ready bundle；默认 bundle 是 `content/build/default/`
 - `runtime/skills/`
   - `wv-prepare-stage`
   - `wv-answer-stage`
@@ -56,6 +62,121 @@
   - pinned live-captured protocol bundle
 - `runs/<run_id>/`
   - 每次运行的产物根目录
+
+## Content bundle 构建
+
+`content/src/` 是 rich content 的 authoring source-of-truth，不是 runtime stages 的直接输入。
+当前 runtime contract 不变：Stage 1 / Stage 2 / Stage 3 继续只消费编译后的 JSON bundle，不要让运行链路直接读取 `content/src/` 下的源文件。
+
+当前保留两条直接 workflow：
+
+- direct panel run：先从 `content/src/` 构建 bundle，再把 `worldview-panel` 指向 `content/build/<bundle_id>/runtime/`
+- direct distinctness eval：先从 `content/src/` 构建 bundle，再把 evaluator 指向同一个 compiled bundle 和 questions 文件；如果不走 `make content-eval`，必须显式传一个位于 `content/build/<bundle_id>/` 外部的 `-out` 路径
+
+构建 compiled bundle：
+
+```sh
+make build-content
+```
+
+默认 bundle id 是 `default`。如果你要生成别的 bundle id，可以直接覆盖：
+
+```sh
+make build-content CONTENT_BUNDLE_ID=review_candidate
+```
+
+输出路径会跟随 `CONTENT_BUNDLE_ID`：
+
+- `content/build/<bundle_id>/bundle-manifest.json`
+- `content/build/<bundle_id>/runtime/persona-index.json`
+- `content/build/<bundle_id>/runtime/personas/*.json`
+- `content/build/<bundle_id>/runtime/materials/*.json`
+
+运行 distinctness evaluator：
+
+```sh
+make content-eval
+```
+
+它会先构建当前 `CONTENT_BUNDLE_ID`，再把评估结果写到：
+
+- `out/content-eval/<bundle_id>/latest/distinctness-report.json`
+- `out/content-eval/<bundle_id>/latest/distinctness-report.md`
+- `out/content-eval/<bundle_id>/latest/panel_runs/<question_id>/runs/<run_id>/`
+
+例如：
+
+```sh
+make content-eval CONTENT_BUNDLE_ID=review_candidate
+```
+
+这个评估器会复用现有 `worldview-panel` CLI 跑真实 panel run，再用确定性启发式打分：
+
+- near duplicate outputs
+- missing anchors
+- generic framing
+
+`content/src/evals/distinctness/questions.json` 里的每个问题现在都需要显式声明
+`anchor_domain`，这样评估时只会对该问题对应的 domain scope 做 anchor 命中检查，
+不会把所有 domain 文本混在一起打分。
+
+当前默认 authored cohort 已经包含：
+
+- `analyst`
+- `builder`
+- `historian`
+- `operator`
+- `policy`
+- `skeptic`
+
+默认把 eval 输出放在 `out/content-eval/default/latest/`，是为了避免
+`make build-content` 重建 `content/build/<bundle_id>/` 时把历史评估结果一起删掉。
+
+如果你直接运行 evaluator，也可以把输出根目录指定到
+`out/content-eval/<bundle_id>/no_review/` 这类路径；报告文件仍然是
+`distinctness-report.json` 和 `distinctness-report.md`。关键约束是不管
+bundle id 是什么，直接调用时都必须显式传 `-out`，并且这个路径必须位于
+`content/build/<bundle_id>/` 外部；不要把 evaluator 输出写回 compiled bundle
+树里。
+
+构建路径的 infra smoke 使用固定 fixture，而不是 live product cohort：
+
+```sh
+make content-smoke-build
+```
+
+如果仓库直接位于 Android/Termux 共享存储路径，手动 build/run 还要注意两个现实限制：
+
+- Go 命令本身可能因为 `go.mod` 锁限制失败；`Makefile` targets 会先把仓库 mirror 到本地临时目录再执行，并默认跳过 `.git`、`out/`、`runs/`、`content/build/`、`go_bin` 这类 generated trees；临时根目录可用 `TMP_ROOT=/abs/path` 覆盖
+- 共享存储上的 repo-root `./go_bin` 常常不可执行；`make build` 默认会把二进制写到 `$HOME/worldview-panel_bin`
+
+所以当前 workspace 的推荐手动运行路径是：直接使用 `make build` 的默认输出，或显式把二进制写到别的可执行绝对路径，而不是依赖仓库根目录的 `./go_bin`。当前 `make build BIN_PATH=/abs/path/to/worldview-panel` 也会自动创建 `BIN_PATH` 的父目录。
+
+手动启动时还有一个容易踩坑的前提：进程的 `cwd` 必须位于这个 repo tree 内，
+例如 repo root 本身；不要因为二进制在 `$HOME/worldview-panel_bin` 就从 `$HOME`
+或别的无关目录启动它，否则 repo discovery 不会命中当前仓库。
+
+例如：
+
+```sh
+make build
+```
+
+再在 repo 内部目录启动这个可执行路径，驱动现有 runtime：
+
+```sh
+cd /absolute/path/to/view_panel
+"$HOME/worldview-panel_bin" \
+  -question "xxx讨论" \
+  -materials ./content/build/default/runtime/materials/technology.json \
+  -persona-set ./content/build/default/runtime/persona-index.json \
+  -outdir ./out \
+  -concurrency 6 \
+  -review-enabled=true \
+  -worker-timeout-ms=0 \
+  -max-attempts-per-persona=2 \
+  -forbidden-tool-name shell,web
+```
 
 ## 运行前提
 
@@ -77,22 +198,36 @@
 
 ## 快速开始
 
-先编译：
+先从 `content/src/` 构建默认 runtime bundle：
 
 ```sh
-go build -o go_bin ./cmd/worldview-panel
+make build-content
 ```
 
-运行：
+在当前 shared-storage checkout 里，优先把二进制写到可执行路径，而不是把 repo-root `./go_bin` 当作主运行路径：
 
 ```sh
-./go_bin \
+make build
+```
+
+如果默认临时目录不适合当前机器，也可以显式覆盖 `TMP_ROOT`：
+
+```sh
+make build TMP_ROOT="$HOME"
+```
+
+如果你想直接运行 `go build` / `go test` / `go run`，先把仓库 mirror 到本地可锁且可执行的目录，再在 mirror 里执行这些 Go 命令。
+
+运行前先切到 repo root，或者 repo tree 内的任意子目录：
+
+```sh
+cd /absolute/path/to/view_panel
+"$HOME/worldview-panel_bin" \
   -question "xxx讨论" \
-  -materials ./materials/topic_x.json \
-  -persona-set ./runtime/persona-index.json \
+  -materials ./content/build/default/runtime/materials/technology.json \
+  -persona-set ./content/build/default/runtime/persona-index.json \
   -outdir ./out \
   -concurrency 6 \
-  -model gpt-5.4 \
   -review-enabled=true \
   -worker-timeout-ms=0 \
   -max-attempts-per-persona=2 \
@@ -134,6 +269,11 @@ make smoke
 
 `make smoke` 当前不会自动刷新 protocol bundle；它直接使用仓库里现有的 checked-in live bundle。需要刷新 pinned evidence 时，先单独运行 `make capture-protocol`。
 
+`make smoke` 现在遵循当前 startup surface，不再传 legacy top-level `-model`。
+手动运行时也不要再传这个 flag：`-model=<non-empty>` 会以
+`invalid_cli_usage` 被拒绝，而显式空值 `-model=` 会继续落到 startup
+config 校验，再以 `invalid_startup_config` 失败。
+
 如果仓库位于 Android/Termux 共享存储路径，仓库里的 `go_bin` 可能因为 `noexec` 不能直接执行；`make smoke` 已经内置了本地 mirror 运行方式，优先用它做真实联调。
 
 更完整的运行、排查和发布说明见：
@@ -162,9 +302,6 @@ make smoke
   - 可选
   - 默认 `1`
   - 必须 `>= 1`
-- `-model`
-  - 可选
-  - 默认 `gpt-5.3-codex-spark`
 - `-review-enabled`
   - 可选
   - 默认 `true`
@@ -186,6 +323,11 @@ make smoke
   - 可重复传入，也可以传逗号分隔列表
   - startup 会做去重、trim 和小写归一化
   - 会进入 Stage 2 batch policy 的 forbidden tool 检查
+
+当前 runtime contract 不支持 top-level `-model`；如果手动传入该 flag，
+`-model=<non-empty>` 会以 `invalid_cli_usage` 直接返回非零退出码，而显式空值
+`-model=` 会继续落到 startup config 校验，再以 `invalid_startup_config`
+返回非零退出码。
 
 CLI startup validation 失败时会向 `stderr` 输出 machine-readable JSON，并返回非零退出码。
 在 startup validation 通过后，runtime 还会执行 runtime-contract check；如果是 blocking mismatch，会在写出 `runs/<run_id>/audit/runtime_contract_status.json` 后直接停止。
@@ -265,7 +407,6 @@ CLI startup validation 失败时会向 `stderr` 输出 machine-readable JSON，�
 
 ```text
 runs/<run_id>/
-  request/
   01_prepare/
   02_answer/
   03_render/
@@ -274,7 +415,6 @@ runs/<run_id>/
 
 关键路径：
 
-- `request/log.jsonl`
 - `01_prepare/personas/<persona_id>/dispatch_input_v1.json`
 - `01_prepare/personas/<persona_id>/agents.md`
 - `01_prepare/personas/<persona_id>/prompt.txt`
@@ -381,13 +521,14 @@ go test ./...
 但要注意一个真实环境约束：
 
 - 如果仓库直接位于 Android/Termux 的共享存储路径，Go 可能在 `go.mod` 上做文件锁时失败
+- 共享存储里的 repo-root `go_bin` 也可能不可执行；`make build` 现在默认写到 `$HOME/worldview-panel_bin`，也可以显式覆盖 `BIN_PATH=/abs/path/to/worldview-panel`
 - 这种情况下，需要先把仓库镜像到本地可锁目录，再运行 Go 命令
 
 一个可用做法是：
 
 ```sh
 tmpdir=$(mktemp -d /data/data/com.termux/files/home/view_panel_test_XXXXXX) && \
-tar -cf - --exclude=.git . | (cd "$tmpdir" && tar -xf -) && \
+tar -cf - --exclude=.git --exclude=out --exclude=runs --exclude=content/build --exclude=go_bin . | (cd "$tmpdir" && tar -xf -) && \
 cd "$tmpdir" && \
 go test ./...
 ```

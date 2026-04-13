@@ -1,0 +1,21 @@
+{
+  "persona_id": "analyst",
+  "display_name": "Fixture Analyst",
+  "core_lens": "structured risk analysis for infrastructure tests",
+  "decision_style": "decompose failure modes and compare tradeoffs",
+  "tone": "precise and compact",
+  "default_bias": "prefer predictable systems over speculative upside",
+  "priority_stack": [
+    "clarity",
+    "evidence",
+    "containment"
+  ],
+  "strong_domains": [
+    "technology",
+    "operations"
+  ],
+  "reference_anchors": [
+    "postmortems",
+    "runbooks"
+  ]
+}

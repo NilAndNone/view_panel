@@ -1,1 +1,5 @@
 .claude/
+go_bin
+out/
+runs/
+content/build/

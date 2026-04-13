@@ -40,6 +40,27 @@ The retained planning reference now lives under:
 
 Earlier execution-plan artifacts were pruned. They are no longer part of the repository-level dispatch contract.
 
+## Content Authoring Boundary
+
+Authored content now has a separate build path:
+
+- source authoring tree: `content/src/`
+- stable builder/smoke fixture tree: `testdata/content/builder_fixture/src/`
+- catalog / compiler / bundle writer: `internal/content/`
+- bundle build CLI: `tools/build_content_bundle/main.go`
+- compiled bundle root: `content/build/<bundle_id>/`
+
+Keep this contract intact:
+
+- runtime stages and the main panel CLI continue to consume compiled JSON under `content/build/<bundle_id>/runtime/`
+- rich authoring files under `content/src/` are build inputs only and must not be read directly by runtime stages
+- the normal authoring workflow is `content/src/` -> `make build-content CONTENT_BUNDLE_ID=<bundle_id>` -> `content/build/<bundle_id>/runtime/`
+- retained direct workflows are: run `worldview-panel` against compiled runtime JSON, and run distinctness eval against the same compiled bundle plus `content/src/evals/distinctness/questions.json`
+- if distinctness eval is invoked directly instead of `make content-eval`, it must receive an explicit `-out` path outside `content/build/<bundle_id>/`
+- default `make content-eval` output now lives under `out/content-eval/<bundle_id>/latest/` so `make build-content` can replace `content/build/<bundle_id>/` without wiping retained eval history
+- builder-path infra tests and `make content-smoke-build` must stay pinned to the dedicated fixture tree, not the evolving live product cohort
+- if you change bundle build behavior or compiled bundle shape, update both `README.md` and this file deliberately
+
 ## Source Of Truth Order
 
 For the current codebase, use this order:
@@ -199,7 +220,7 @@ Stage 2 sealing rules:
 
 - `P07` must not open `dispatch_input_v1.json`
 - sealing reads only Stage 1 `agents.md`, `prompt.txt`, and `hashes.json`
-- `outgoing_input.json` is the canonical Stage 2 seal record
+- `outgoing_input.json` is the canonical Stage 2 seal record; the current `schema_version` is `answer_outgoing_input_v2`
 - the sealed record currently includes `execution_cwd`, `execution_home_dir`, and `execution_codex_home_dir`
 - P07/P08 must keep `HOME` and `CODEX_HOME` inside the isolated worker boundary
 - P08 verifies the sealed env and input hashes against `outgoing_input.json` before launch
@@ -225,10 +246,37 @@ Example:
 
 ```sh
 tmpdir=$(mktemp -d /data/data/com.termux/files/home/view_panel_test_XXXXXX) && \
-tar -cf - --exclude=.git . | (cd "$tmpdir" && tar -xf -) && \
+tar -cf - --exclude=.git --exclude=out --exclude=runs --exclude=content/build --exclude=go_bin . | (cd "$tmpdir" && tar -xf -) && \
 cd "$tmpdir" && \
 go test ./...
 ```
+
+The repository `Makefile` avoids this by mirroring into a local temp directory first.
+Those mirror copies intentionally skip generated trees such as `out/`, `runs/`, `content/build/`, and `go_bin`.
+That temp root is configurable with `TMP_ROOT`; if the default is unsuitable on the current machine, override it explicitly.
+
+Example:
+
+```sh
+make build TMP_ROOT="$HOME"
+```
+
+### Shared-storage repo-root binary caveat
+
+In a shared-storage checkout, do not treat repo-root `./go_bin` as the primary manual run path.
+Even when `make build` succeeds, the binary written back into the repo may not be executable in place because shared storage can be `noexec` or can drop execute bits.
+
+Preferred manual workflows:
+
+- `make build` and run the default output path `$HOME/worldview-panel_bin`
+- or `make build BIN_PATH=/abs/path/to/worldview-panel` and run that absolute path; the Makefile creates `$(dir BIN_PATH)` for you
+- or mirror the repo into a local exec-capable directory and run the binary there
+
+Manual run caveat:
+
+- repo discovery is cwd-based; even if the binary itself lives at `$HOME/worldview-panel_bin` or another absolute path, start the process with `cwd` inside the repo tree so startup/runtime checks can resolve the checked-in repository context
+
+Keep this caveat visible in `README.md` whenever build/run instructions are updated.
 
 ### App-server transport seam
 

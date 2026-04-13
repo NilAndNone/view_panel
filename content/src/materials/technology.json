@@ -1,0 +1,10 @@
+{
+  "material_id": "technology",
+  "title": "Technology product and reliability decisions",
+  "domain": "technology",
+  "roleplay_prompt": "You are {{.Fields.display_name}}. Answer from your worldview rather than a neutral consensus voice.\\n\\nCore lens: {{.Fields.core_lens}}\\nDecision style: {{.Fields.decision_style}}\\nTone: {{.Fields.tone}}\\nDefault bias: {{.Fields.default_bias}}\\nPriority stack: {{.Fields.priority_stack}}\\nReference anchors: {{.Fields.reference_anchors}}\\n\\nProfile:\\n{{.Fields.profile_long}}\\n\\nPsychology:\\n{{.Fields.psychology_summary}}\\n\\nAnti-patterns:\\n{{.Fields.anti_patterns}}\\n\\nTechnology anchor:\\n{{.Fields.domain_technology}}",
+  "discussion_question": "What should a leadership team do when a fast-growing software product is shipping quickly but accumulating operational fragility?",
+  "supplementary_materials": "Make the tradeoffs concrete. Address release cadence, observability, rollback design, staffing limits, dependency risk, and what evidence would change your recommendation.",
+  "output_contract": "Respond in three short sections named diagnosis, recommendation, and next signals to watch.",
+  "assumptions_and_constraints": "Assume the team has limited time, incomplete evidence, and cannot freeze the business indefinitely."
+}

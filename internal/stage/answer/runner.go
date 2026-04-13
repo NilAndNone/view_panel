@@ -419,15 +419,15 @@ func verifySealedInputs(workspace SealedPersonaWorkspace) (verifiedSealedInputs,
 		return verified, err
 	}
 
-	agentsBytes, err := readRegularFile(workspace.WorkspaceAgentsPath)
+	agentsBytes, err := readPrelaunchVerifiedIsolatedFile(workspace.IsolatedRoot, workspace.WorkspaceAgentsPath)
 	if err != nil {
 		return verified, err
 	}
-	promptBytes, err := readRegularFile(workspace.PromptPath)
+	promptBytes, err := readPrelaunchVerifiedIsolatedFile(workspace.IsolatedRoot, workspace.PromptPath)
 	if err != nil {
 		return verified, err
 	}
-	skillBytes, err := readRegularFile(workspace.SkillPath)
+	skillBytes, err := readPrelaunchVerifiedIsolatedFile(workspace.IsolatedRoot, workspace.SkillPath)
 	if err != nil {
 		return verified, err
 	}
@@ -441,6 +441,16 @@ func verifySealedInputs(workspace SealedPersonaWorkspace) (verifiedSealedInputs,
 	if panelhash.SHA256Hex(skillBytes) != outgoingRecord.SkillSHA256 {
 		return verified, errors.New("isolated skill hash mismatch")
 	}
+	if err := ensurePathHasNoSymlinkComponentsWithinRoot(workspace.IsolatedRoot, workspace.ExecutionEnv.CodexHomeDir); err != nil {
+		return verified, err
+	}
+	codexRuntimeSHA, err := allowlistedCodexRuntimeSHA256(workspace.ExecutionEnv.CodexHomeDir)
+	if err != nil {
+		return verified, err
+	}
+	if strings.TrimSpace(outgoingRecord.CodexRuntimeSHA256) != "" && codexRuntimeSHA != outgoingRecord.CodexRuntimeSHA256 {
+		return verified, errors.New("isolated codex runtime hash mismatch")
+	}
 	if lengthPrefixedSHA256Hex(agentsBytes, promptBytes, skillBytes) != outgoingRecord.CombinedInputSHA256 {
 		return verified, errors.New("combined input hash mismatch")
 	}
@@ -449,6 +459,13 @@ func verifySealedInputs(workspace SealedPersonaWorkspace) (verifiedSealedInputs,
 	verified.PromptBytes = promptBytes
 	verified.SkillBytes = skillBytes
 	return verified, nil
+}
+
+func readPrelaunchVerifiedIsolatedFile(isolatedRoot, path string) ([]byte, error) {
+	if err := ensurePathHasNoSymlinkComponentsWithinRoot(isolatedRoot, filepath.Dir(path)); err != nil {
+		return nil, err
+	}
+	return readRegularFile(path)
 }
 
 func verifySealedWorkspaceContract(workspace SealedPersonaWorkspace, outgoingRecord outgoingInputRecord) error {

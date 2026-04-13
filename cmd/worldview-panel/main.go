@@ -122,6 +122,10 @@ func run(args []string) int {
 	return 0
 }
 
+func unsupportedModelError() error {
+	return errors.New("-model is unsupported by the current worldview-panel runtime contract; leave it unset")
+}
+
 func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, error) {
 	flagSet := flag.NewFlagSet("worldview-panel", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
@@ -144,6 +148,9 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 	}
 	if extras := flagSet.Args(); len(extras) > 0 {
 		return config.StartupConfig{}, nil, fmt.Errorf("unexpected positional arguments: %v", extras)
+	}
+	if strings.TrimSpace(*model) != "" {
+		return config.StartupConfig{}, nil, unsupportedModelError()
 	}
 
 	provided := make(map[string]bool)
@@ -175,6 +182,9 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 	}
 
 	cfg := config.NormalizeStartupConfig(raw)
+	if !provided["model"] {
+		cfg.Model = ""
+	}
 	diagnostics := schema.ValidateStartupConfig(raw, cfg)
 	return cfg, diagnostics, nil
 }
@@ -185,6 +195,9 @@ func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) erro
 
 func handoffValidatedStartupWithDeps(ctx context.Context, cfg config.StartupConfig, deps startupDeps) error {
 	deps = deps.withDefaults()
+	if strings.TrimSpace(cfg.Model) != "" {
+		return withStatus("startup_failed", unsupportedModelError())
+	}
 
 	runID := deps.newRunID()
 	runRoot := storage.RunRoot(cfg.OutDir, runID)
@@ -626,11 +639,8 @@ func (a renderAppServerAdapter) resolveRepoPath(path string) (string, error) {
 }
 
 func modelExtraArgs(model string) []string {
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return nil
-	}
-	return []string{"--model", model}
+	_ = model
+	return nil
 }
 
 func locateRepoRoot() (string, error) {

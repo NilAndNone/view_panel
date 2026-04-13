@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "content-bundle-manifest-v1.schema.json",
+  "title": "Content Bundle Manifest V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "persona_count",
+    "material_count",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "content_bundle_manifest_v1"
+    },
+    "bundle_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "persona_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "material_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^runtime\\/(persona-index\\.json|personas\\/[a-z][a-z0-9_]*\\.json|materials\\/[a-z][a-z0-9_]*\\.json)$"
+      }
+    }
+  }
+}
