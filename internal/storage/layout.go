@@ -21,6 +21,7 @@ const (
 	requestLogFile    = "log.jsonl"
 	auditEventsFile   = "events.jsonl"
 	auditErrorsFile   = "errors.log"
+	runtimeContractStatusFile = "runtime_contract_status.json"
 	defaultDirMode    = 0o755
 	defaultFileMode   = 0o644
 )
@@ -95,6 +96,11 @@ func AuditEventsPath(runRoot string) string {
 // AuditErrorsPath returns the canonical audit error log path.
 func AuditErrorsPath(runRoot string) string {
 	return filepath.Join(AuditRoot(runRoot), auditErrorsFile)
+}
+
+// RuntimeContractStatusPath returns the canonical runtime-contract audit artifact path.
+func RuntimeContractStatusPath(runRoot string) string {
+	return filepath.Join(AuditRoot(runRoot), runtimeContractStatusFile)
 }
 
 // ResolvePath joins rel under base after lexical boundary checks and rejects any

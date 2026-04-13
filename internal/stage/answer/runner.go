@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	panelhash "view_panel/internal/hash"
@@ -17,6 +18,7 @@ type AppServerLaunchContext struct {
 	Environment             map[string]string `json:"environment,omitempty"`
 	CurrentWorkingDirectory string            `json:"current_working_directory"`
 	HomeDir                 string            `json:"home_dir"`
+	CodexHomeDir            string            `json:"codex_home_dir"`
 }
 
 type RunSingleTurnOptions struct {
@@ -52,12 +54,12 @@ type ExecuteWorkerResult struct {
 }
 
 type SingleTurnRunResult struct {
-	TerminalOutcome string                 `json:"terminal_outcome"`
-	LastReachedPhase string                `json:"last_reached_phase,omitempty"`
-	CloseOutcomeKind string                `json:"close_outcome_kind,omitempty"`
-	ThreadID         string                `json:"thread_id,omitempty"`
-	TurnID           string                `json:"turn_id,omitempty"`
-	CompletedItem    *CompletedAgentItem   `json:"completed_item,omitempty"`
+	TerminalOutcome  string                 `json:"terminal_outcome"`
+	LastReachedPhase string                 `json:"last_reached_phase,omitempty"`
+	CloseOutcomeKind string                 `json:"close_outcome_kind,omitempty"`
+	ThreadID         string                 `json:"thread_id,omitempty"`
+	TurnID           string                 `json:"turn_id,omitempty"`
+	CompletedItem    *CompletedAgentItem    `json:"completed_item,omitempty"`
 	Transcript       []DiagnosticStreamItem `json:"transcript,omitempty"`
 }
 
@@ -78,61 +80,61 @@ type DiagnosticStreamItem struct {
 }
 
 type workerResultArtifact struct {
-	SchemaVersion           string `json:"schema_version"`
-	Stage                   string `json:"stage"`
-	PersonaID               string `json:"persona_id"`
-	SourceOutgoingInputPath string `json:"source_outgoing_input_path"`
+	SchemaVersion             string `json:"schema_version"`
+	Stage                     string `json:"stage"`
+	PersonaID                 string `json:"persona_id"`
+	SourceOutgoingInputPath   string `json:"source_outgoing_input_path"`
 	SourceOutgoingInputSHA256 string `json:"source_outgoing_input_sha256"`
-	CombinedInputSHA256     string `json:"combined_input_sha256"`
-	AuthoritativeItemType   string `json:"authoritative_item_type"`
-	AuthoritativeItemID     string `json:"authoritative_item_id"`
-	Text                    string `json:"text"`
-	TextSHA256              string `json:"text_sha256"`
-	AuthoritativeItem       any    `json:"authoritative_item"`
+	CombinedInputSHA256       string `json:"combined_input_sha256"`
+	AuthoritativeItemType     string `json:"authoritative_item_type"`
+	AuthoritativeItemID       string `json:"authoritative_item_id"`
+	Text                      string `json:"text"`
+	TextSHA256                string `json:"text_sha256"`
+	AuthoritativeItem         any    `json:"authoritative_item"`
 }
 
 type workerAttestationArtifact struct {
-	SchemaVersion             string              `json:"schema_version"`
-	Stage                     string              `json:"stage"`
-	PersonaID                 string              `json:"persona_id"`
-	SourceOutgoingInputPath   string              `json:"source_outgoing_input_path"`
-	SourceOutgoingInputSHA256 *string             `json:"source_outgoing_input_sha256"`
-	CombinedInputSHA256       *string             `json:"combined_input_sha256"`
-	AgentInstructionsSHA256   *string             `json:"agent_instructions_sha256"`
-	PromptSHA256              *string             `json:"prompt_sha256"`
-	SkillPath                 *string             `json:"skill_path"`
-	SkillSHA256               *string             `json:"skill_sha256"`
-	RunnerTerminalOutcome     *string             `json:"runner_terminal_outcome"`
-	LastReachedPhase          *string             `json:"last_reached_phase"`
-	CloseOutcomeKind          *string             `json:"close_outcome_kind"`
+	SchemaVersion              string             `json:"schema_version"`
+	Stage                      string             `json:"stage"`
+	PersonaID                  string             `json:"persona_id"`
+	SourceOutgoingInputPath    string             `json:"source_outgoing_input_path"`
+	SourceOutgoingInputSHA256  *string            `json:"source_outgoing_input_sha256"`
+	CombinedInputSHA256        *string            `json:"combined_input_sha256"`
+	AgentInstructionsSHA256    *string            `json:"agent_instructions_sha256"`
+	PromptSHA256               *string            `json:"prompt_sha256"`
+	SkillPath                  *string            `json:"skill_path"`
+	SkillSHA256                *string            `json:"skill_sha256"`
+	RunnerTerminalOutcome      *string            `json:"runner_terminal_outcome"`
+	LastReachedPhase           *string            `json:"last_reached_phase"`
+	CloseOutcomeKind           *string            `json:"close_outcome_kind"`
 	AuthoritativeOutputPresent bool               `json:"authoritative_output_present"`
-	AuthoritativeItemType     *string             `json:"authoritative_item_type"`
-	AuthoritativeItemID       *string             `json:"authoritative_item_id"`
-	AuthoritativeTextSHA256   *string             `json:"authoritative_text_sha256"`
-	ResultJSONSHA256          *string             `json:"result_json_sha256"`
-	ResultRawTXTSHA256        *string             `json:"result_raw_txt_sha256"`
-	ResultRawMode             *string             `json:"result_raw_mode"`
-	ObservedToolCalls         []observedToolCall  `json:"observed_tool_calls"`
-	DiagnosticStreamItemCount int                 `json:"diagnostic_stream_item_count"`
+	AuthoritativeItemType      *string            `json:"authoritative_item_type"`
+	AuthoritativeItemID        *string            `json:"authoritative_item_id"`
+	AuthoritativeTextSHA256    *string            `json:"authoritative_text_sha256"`
+	ResultJSONSHA256           *string            `json:"result_json_sha256"`
+	ResultRawTXTSHA256         *string            `json:"result_raw_txt_sha256"`
+	ResultRawMode              *string            `json:"result_raw_mode"`
+	ObservedToolCalls          []observedToolCall `json:"observed_tool_calls"`
+	DiagnosticStreamItemCount  int                `json:"diagnostic_stream_item_count"`
 }
 
 type workerStatusArtifact struct {
-	SchemaVersion             string  `json:"schema_version"`
-	Stage                     string  `json:"stage"`
-	PersonaID                 string  `json:"persona_id"`
-	Outcome                   string  `json:"outcome"`
-	LastReachedPhase          *string `json:"last_reached_phase"`
-	CloseOutcomeKind          *string `json:"close_outcome_kind"`
-	AuthoritativeOutputPresent bool   `json:"authoritative_output_present"`
-	AuthoritativeItemType     *string `json:"authoritative_item_type"`
-	AuthoritativeItemID       *string `json:"authoritative_item_id"`
-	ResultRawPresent          bool    `json:"result_raw_present"`
-	ResultJSONPresent         bool    `json:"result_json_present"`
-	AttestationPresent        bool    `json:"attestation_present"`
-	SourceOutgoingInputPath   string  `json:"source_outgoing_input_path"`
-	ResultRawPath             *string `json:"result_raw_path"`
-	ResultJSONPath            *string `json:"result_json_path"`
-	AttestationPath           string  `json:"attestation_path"`
+	SchemaVersion              string  `json:"schema_version"`
+	Stage                      string  `json:"stage"`
+	PersonaID                  string  `json:"persona_id"`
+	Outcome                    string  `json:"outcome"`
+	LastReachedPhase           *string `json:"last_reached_phase"`
+	CloseOutcomeKind           *string `json:"close_outcome_kind"`
+	AuthoritativeOutputPresent bool    `json:"authoritative_output_present"`
+	AuthoritativeItemType      *string `json:"authoritative_item_type"`
+	AuthoritativeItemID        *string `json:"authoritative_item_id"`
+	ResultRawPresent           bool    `json:"result_raw_present"`
+	ResultJSONPresent          bool    `json:"result_json_present"`
+	AttestationPresent         bool    `json:"attestation_present"`
+	SourceOutgoingInputPath    string  `json:"source_outgoing_input_path"`
+	ResultRawPath              *string `json:"result_raw_path"`
+	ResultJSONPath             *string `json:"result_json_path"`
+	AttestationPath            string  `json:"attestation_path"`
 }
 
 type observedToolCall struct {
@@ -185,50 +187,50 @@ func (r Runner) Execute(ctx context.Context, req ExecuteWorkerRequest) (ExecuteW
 	verified, verificationErr := verifySealedInputs(req.Workspace)
 	if verificationErr != nil {
 		attestation := workerAttestationArtifact{
-			SchemaVersion:             workerAttestationSchemaV1,
-			Stage:                     answerStage,
-			PersonaID:                 req.Workspace.PersonaID,
-			SourceOutgoingInputPath:   outgoingInputPathLiteral,
-			SourceOutgoingInputSHA256: verified.OutgoingSHA256,
-			CombinedInputSHA256:       outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.CombinedInputSHA256 }),
-			AgentInstructionsSHA256:   outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.AgentInstructionsSHA256 }),
-			PromptSHA256:              outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.PromptSHA256 }),
-			SkillPath:                 outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.SkillPath }),
-			SkillSHA256:               outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.SkillSHA256 }),
-			RunnerTerminalOutcome:     stringPtr(statusOutcomeFailed),
-			LastReachedPhase:          stringPtr(prelaunchVerificationPhase),
-			CloseOutcomeKind:          stringPtr(rejectedBeforeLaunchOutcome),
+			SchemaVersion:              workerAttestationSchemaV1,
+			Stage:                      answerStage,
+			PersonaID:                  req.Workspace.PersonaID,
+			SourceOutgoingInputPath:    outgoingInputPathLiteral,
+			SourceOutgoingInputSHA256:  verified.OutgoingSHA256,
+			CombinedInputSHA256:        outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.CombinedInputSHA256 }),
+			AgentInstructionsSHA256:    outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.AgentInstructionsSHA256 }),
+			PromptSHA256:               outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.PromptSHA256 }),
+			SkillPath:                  outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.SkillPath }),
+			SkillSHA256:                outgoingFieldPtr(verified.OutgoingRecord, func(record *outgoingInputRecord) string { return record.SkillSHA256 }),
+			RunnerTerminalOutcome:      stringPtr(statusOutcomeFailed),
+			LastReachedPhase:           stringPtr(prelaunchVerificationPhase),
+			CloseOutcomeKind:           stringPtr(rejectedBeforeLaunchOutcome),
 			AuthoritativeOutputPresent: false,
-			AuthoritativeItemType:     nil,
-			AuthoritativeItemID:       nil,
-			AuthoritativeTextSHA256:   nil,
-			ResultJSONSHA256:          nil,
-			ResultRawTXTSHA256:        nil,
-			ResultRawMode:             nil,
-			ObservedToolCalls:         []observedToolCall{},
-			DiagnosticStreamItemCount: 0,
+			AuthoritativeItemType:      nil,
+			AuthoritativeItemID:        nil,
+			AuthoritativeTextSHA256:    nil,
+			ResultJSONSHA256:           nil,
+			ResultRawTXTSHA256:         nil,
+			ResultRawMode:              nil,
+			ObservedToolCalls:          []observedToolCall{},
+			DiagnosticStreamItemCount:  0,
 		}
 		if err := storage.WriteJSON(attestationPath, attestation); err != nil {
 			return result, fmt.Errorf("write attestation after prelaunch rejection: %w", err)
 		}
 
 		status := workerStatusArtifact{
-			SchemaVersion:             workerStatusSchemaV1,
-			Stage:                     answerStage,
-			PersonaID:                 req.Workspace.PersonaID,
-			Outcome:                   statusOutcomeFailed,
-			LastReachedPhase:          stringPtr(prelaunchVerificationPhase),
-			CloseOutcomeKind:          stringPtr(rejectedBeforeLaunchOutcome),
+			SchemaVersion:              workerStatusSchemaV1,
+			Stage:                      answerStage,
+			PersonaID:                  req.Workspace.PersonaID,
+			Outcome:                    statusOutcomeFailed,
+			LastReachedPhase:           stringPtr(prelaunchVerificationPhase),
+			CloseOutcomeKind:           stringPtr(rejectedBeforeLaunchOutcome),
 			AuthoritativeOutputPresent: false,
-			AuthoritativeItemType:     nil,
-			AuthoritativeItemID:       nil,
-			ResultRawPresent:          false,
-			ResultJSONPresent:         false,
-			AttestationPresent:        true,
-			SourceOutgoingInputPath:   outgoingInputPathLiteral,
-			ResultRawPath:             nil,
-			ResultJSONPath:            nil,
-			AttestationPath:           attestationArtifactName,
+			AuthoritativeItemType:      nil,
+			AuthoritativeItemID:        nil,
+			ResultRawPresent:           false,
+			ResultJSONPresent:          false,
+			AttestationPresent:         true,
+			SourceOutgoingInputPath:    outgoingInputPathLiteral,
+			ResultRawPath:              nil,
+			ResultJSONPath:             nil,
+			AttestationPath:            attestationArtifactName,
 		}
 		if err := storage.WriteJSON(statusPath, status); err != nil {
 			return result, fmt.Errorf("write status after prelaunch rejection: %w", err)
@@ -241,14 +243,7 @@ func (r Runner) Execute(ctx context.Context, req ExecuteWorkerRequest) (ExecuteW
 	}
 
 	turnInput := string(verified.SkillBytes) + "\n\n" + string(verified.PromptBytes)
-	startedClient, launchErr := r.StartAppServer(ctx, AppServerLaunchContext{
-		ExtraArgs: req.ExtraArgs,
-		Environment: map[string]string{
-			"HOME": req.Workspace.HomeDir,
-		},
-		CurrentWorkingDirectory: req.Workspace.CWD,
-		HomeDir:                 req.Workspace.HomeDir,
-	})
+	startedClient, launchErr := r.StartAppServer(ctx, req.Workspace.ExecutionEnv.LaunchContext(req.ExtraArgs))
 
 	terminalOutcome := (*string)(nil)
 	lastReachedPhase := (*string)(nil)
@@ -345,50 +340,50 @@ func (r Runner) Execute(ctx context.Context, req ExecuteWorkerRequest) (ExecuteW
 	}
 
 	attestation := workerAttestationArtifact{
-		SchemaVersion:             workerAttestationSchemaV1,
-		Stage:                     answerStage,
-		PersonaID:                 req.Workspace.PersonaID,
-		SourceOutgoingInputPath:   outgoingInputPathLiteral,
-		SourceOutgoingInputSHA256: verified.OutgoingSHA256,
-		CombinedInputSHA256:       stringPtr(verified.OutgoingRecord.CombinedInputSHA256),
-		AgentInstructionsSHA256:   stringPtr(verified.OutgoingRecord.AgentInstructionsSHA256),
-		PromptSHA256:              stringPtr(verified.OutgoingRecord.PromptSHA256),
-		SkillPath:                 stringPtr(verified.OutgoingRecord.SkillPath),
-		SkillSHA256:               stringPtr(verified.OutgoingRecord.SkillSHA256),
-		RunnerTerminalOutcome:     terminalOutcome,
-		LastReachedPhase:          lastReachedPhase,
-		CloseOutcomeKind:          closeOutcomeKind,
+		SchemaVersion:              workerAttestationSchemaV1,
+		Stage:                      answerStage,
+		PersonaID:                  req.Workspace.PersonaID,
+		SourceOutgoingInputPath:    outgoingInputPathLiteral,
+		SourceOutgoingInputSHA256:  verified.OutgoingSHA256,
+		CombinedInputSHA256:        stringPtr(verified.OutgoingRecord.CombinedInputSHA256),
+		AgentInstructionsSHA256:    stringPtr(verified.OutgoingRecord.AgentInstructionsSHA256),
+		PromptSHA256:               stringPtr(verified.OutgoingRecord.PromptSHA256),
+		SkillPath:                  stringPtr(verified.OutgoingRecord.SkillPath),
+		SkillSHA256:                stringPtr(verified.OutgoingRecord.SkillSHA256),
+		RunnerTerminalOutcome:      terminalOutcome,
+		LastReachedPhase:           lastReachedPhase,
+		CloseOutcomeKind:           closeOutcomeKind,
 		AuthoritativeOutputPresent: authoritativeOutputPresent,
-		AuthoritativeItemType:     authoritativeItemType,
-		AuthoritativeItemID:       authoritativeItemID,
-		AuthoritativeTextSHA256:   authoritativeTextSHA,
-		ResultJSONSHA256:          resultJSONSHA,
-		ResultRawTXTSHA256:        rawSHA,
-		ResultRawMode:             rawMode,
-		ObservedToolCalls:         observedToolCalls,
-		DiagnosticStreamItemCount: len(runResult.Transcript),
+		AuthoritativeItemType:      authoritativeItemType,
+		AuthoritativeItemID:        authoritativeItemID,
+		AuthoritativeTextSHA256:    authoritativeTextSHA,
+		ResultJSONSHA256:           resultJSONSHA,
+		ResultRawTXTSHA256:         rawSHA,
+		ResultRawMode:              rawMode,
+		ObservedToolCalls:          observedToolCalls,
+		DiagnosticStreamItemCount:  len(runResult.Transcript),
 	}
 	if err := storage.WriteJSON(attestationPath, attestation); err != nil {
 		return result, fmt.Errorf("write attestation.json: %w", err)
 	}
 
 	status := workerStatusArtifact{
-		SchemaVersion:             workerStatusSchemaV1,
-		Stage:                     answerStage,
-		PersonaID:                 req.Workspace.PersonaID,
-		Outcome:                   statusOutcome,
-		LastReachedPhase:          lastReachedPhase,
-		CloseOutcomeKind:          closeOutcomeKind,
+		SchemaVersion:              workerStatusSchemaV1,
+		Stage:                      answerStage,
+		PersonaID:                  req.Workspace.PersonaID,
+		Outcome:                    statusOutcome,
+		LastReachedPhase:           lastReachedPhase,
+		CloseOutcomeKind:           closeOutcomeKind,
 		AuthoritativeOutputPresent: authoritativeOutputPresent,
-		AuthoritativeItemType:     authoritativeItemType,
-		AuthoritativeItemID:       authoritativeItemID,
-		ResultRawPresent:          rawPresent,
-		ResultJSONPresent:         resultArtifact != nil,
-		AttestationPresent:        true,
-		SourceOutgoingInputPath:   outgoingInputPathLiteral,
-		ResultRawPath:             nullableArtifactPath(rawPresent, resultRawArtifactName),
-		ResultJSONPath:            nullableArtifactPath(resultArtifact != nil, resultJSONArtifactName),
-		AttestationPath:           attestationArtifactName,
+		AuthoritativeItemType:      authoritativeItemType,
+		AuthoritativeItemID:        authoritativeItemID,
+		ResultRawPresent:           rawPresent,
+		ResultJSONPresent:          resultArtifact != nil,
+		AttestationPresent:         true,
+		SourceOutgoingInputPath:    outgoingInputPathLiteral,
+		ResultRawPath:              nullableArtifactPath(rawPresent, resultRawArtifactName),
+		ResultJSONPath:             nullableArtifactPath(resultArtifact != nil, resultJSONArtifactName),
+		AttestationPath:            attestationArtifactName,
 	}
 	if err := storage.WriteJSON(statusPath, status); err != nil {
 		return result, fmt.Errorf("write status.json: %w", err)
@@ -420,6 +415,9 @@ func verifySealedInputs(workspace SealedPersonaWorkspace) (verifiedSealedInputs,
 		return verified, err
 	}
 	verified.OutgoingRecord = &outgoingRecord
+	if err := verifySealedWorkspaceContract(workspace, outgoingRecord); err != nil {
+		return verified, err
+	}
 
 	agentsBytes, err := readRegularFile(workspace.WorkspaceAgentsPath)
 	if err != nil {
@@ -451,6 +449,51 @@ func verifySealedInputs(workspace SealedPersonaWorkspace) (verifiedSealedInputs,
 	verified.PromptBytes = promptBytes
 	verified.SkillBytes = skillBytes
 	return verified, nil
+}
+
+func verifySealedWorkspaceContract(workspace SealedPersonaWorkspace, outgoingRecord outgoingInputRecord) error {
+	if err := workspace.ExecutionEnv.ValidateForRoot(workspace.IsolatedRoot); err != nil {
+		return err
+	}
+	if workspace.ExecutionEnv.CWD != outgoingRecord.ExecutionCWD ||
+		workspace.ExecutionEnv.HomeDir != outgoingRecord.ExecutionHomeDir ||
+		workspace.ExecutionEnv.CodexHomeDir != outgoingRecord.ExecutionCodexHomeDir {
+		return errors.New("sealed execution environment record mismatch")
+	}
+
+	expectedRunPersonaDir := storage.AnswerPersonaDir(workspace.RunRoot, workspace.PersonaID)
+	if !sameCleanPath(workspace.RunPersonaDir, expectedRunPersonaDir) {
+		return errors.New("sealed run persona directory mismatch")
+	}
+
+	expectedOutgoingInputPath, err := storage.AnswerPersonaArtifactPath(workspace.RunRoot, workspace.PersonaID, outgoingInputArtifactName)
+	if err != nil {
+		return fmt.Errorf("resolve expected outgoing_input.json path: %w", err)
+	}
+	if !sameCleanPath(workspace.OutgoingInputPath, expectedOutgoingInputPath) {
+		return errors.New("sealed outgoing_input path mismatch")
+	}
+
+	expectedAgentsPath := filepath.Join(workspace.IsolatedRoot, "workspace", "AGENTS.md")
+	if !sameCleanPath(workspace.WorkspaceAgentsPath, expectedAgentsPath) {
+		return errors.New("sealed isolated AGENTS path mismatch")
+	}
+
+	expectedPromptPath := filepath.Join(workspace.IsolatedRoot, "input", "prompt.txt")
+	if !sameCleanPath(workspace.PromptPath, expectedPromptPath) {
+		return errors.New("sealed isolated prompt path mismatch")
+	}
+
+	expectedSkillPath := filepath.Join(workspace.IsolatedRoot, "skill", "SKILL.md")
+	if !sameCleanPath(workspace.SkillPath, expectedSkillPath) {
+		return errors.New("sealed isolated skill path mismatch")
+	}
+
+	return nil
+}
+
+func sameCleanPath(left, right string) bool {
+	return filepath.Clean(left) == filepath.Clean(right)
 }
 
 func extractAuthoritativeCompletedItem(result SingleTurnRunResult) *CompletedAgentItem {

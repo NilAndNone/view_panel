@@ -67,6 +67,9 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
     - `schema_version`, exact literal `answer_outgoing_input_v1`
     - `stage`, exact literal `02_answer`
     - `persona_id`
+    - `execution_cwd`
+    - `execution_home_dir`
+    - `execution_codex_home_dir`
     - `agent_instructions_path`
     - `agent_instructions_sha256`
     - `prompt_path`
@@ -89,10 +92,15 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
     - `)`
   - `combined_input_sha256` must not include `dispatch_input_v1.json` bytes, absolute temp-directory paths, repo-root paths, or HOME/cwd strings.
 - `outgoing_input.json` is the canonical Stage 2 seal record under `<run_root>` and must remain host-stable:
-  - `agent_instructions_path` is exactly `workspace/AGENTS.md`.
-  - `prompt_path` is exactly `input/prompt.txt`.
-  - `skill_path` is the repo-relative selected skill source path.
-  - ephemeral isolated-workspace absolute paths must not be written into `outgoing_input.json`.
+  - stable run-tree fields remain:
+    - `agent_instructions_path`, exactly `workspace/AGENTS.md`
+    - `prompt_path`, exactly `input/prompt.txt`
+    - `skill_path`, the repo-relative selected skill source path
+  - the execution-environment fields are intentionally host-specific absolute paths because they authenticate the P07 -> P08 launch boundary:
+    - `execution_cwd`, exactly `<isolated_root>/workspace`
+    - `execution_home_dir`, exactly `<isolated_root>/home`
+    - `execution_codex_home_dir`, exactly `<isolated_root>/home/.codex`
+  - P08 must verify those execution-environment fields against the actual isolated workspace before launch.
 - The isolated execution workspace contract is fixed in P07 even though worker launch is deferred to P08:
   - P07 receives an explicit `isolatedBaseDir` and must reject it if it resolves under the repo root, under `<run_root>`, or anywhere under the current user HOME tree.
   - per persona, the isolated execution root is exactly `<isolatedBaseDir>/<run_id>/<persona_id>/`.
@@ -178,6 +186,9 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
      - `schema_version`, exact literal `answer_outgoing_input_v1`
      - `stage`, exact literal `02_answer`
      - `persona_id`
+     - `execution_cwd`, exact isolated launch cwd for the persona worker
+     - `execution_home_dir`, exact isolated HOME for the persona worker
+     - `execution_codex_home_dir`, exact isolated CODEX_HOME for the persona worker
      - `agent_instructions_path`, exact literal `workspace/AGENTS.md`
      - `agent_instructions_sha256`
      - `prompt_path`, exact literal `input/prompt.txt`
@@ -188,7 +199,11 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
      - `combined_input_sha256`
    - compute `skill_sha256` from the exact skill bytes selected from the repo-root-relative skill source path.
    - compute `combined_input_sha256` from the exact content bytes that the worker will later see: Stage 2 `AGENTS.md`, Stage 2 `prompt.txt`, and the copied skill payload, using the fixed length-prefixed order defined above.
-   - do not include absolute isolated-workspace paths in `outgoing_input.json`.
+   - include the exact isolated launch paths only in:
+     - `execution_cwd`
+     - `execution_home_dir`
+     - `execution_codex_home_dir`
+   - do not include any other isolated-workspace absolute paths in `outgoing_input.json`.
    - write `outgoing_input.json` only after the persona's run-tree snapshots and isolated execution copies have been prepared successfully, so it serves as the persona-level seal completion record.
 5. Materialize the isolated external execution workspace for later P08 use, without launching the worker.
    - reject `isolatedBaseDir` if its resolved path is under the repo root, under `<run_root>`, or under the current user HOME tree.
@@ -210,7 +225,11 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
      - `<isolated_root>/workspace/AGENTS.md`
      - `<isolated_root>/input/prompt.txt`
      - `<isolated_root>/skill/SKILL.md`
-   - do not persist these host-specific absolute isolated paths into `outgoing_input.json`.
+   - persist only the canonical execution-environment absolute paths into `outgoing_input.json`:
+     - `execution_cwd`
+     - `execution_home_dir`
+     - `execution_codex_home_dir`
+   - do not persist any other host-specific absolute isolated paths into `outgoing_input.json`.
    - P07 may create `<isolated_root>/home/.codex/` as an empty directory, but it must not create `AGENTS.md` there.
 6. Keep P07 strictly narrow and pre-execution.
    - do not start any worker process from `workspace.go`.
@@ -239,6 +258,9 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
   - `schema_version`
   - `stage`
   - `persona_id`
+  - `execution_cwd`
+  - `execution_home_dir`
+  - `execution_codex_home_dir`
   - `agent_instructions_path`
   - `agent_instructions_sha256`
   - `prompt_path`
@@ -250,6 +272,9 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
 - In every `outgoing_input.json`:
   - `schema_version == "answer_outgoing_input_v1"`
   - `stage == "02_answer"`
+  - `execution_cwd == <isolated_root>/workspace`
+  - `execution_home_dir == <isolated_root>/home`
+  - `execution_codex_home_dir == <isolated_root>/home/.codex`
   - `agent_instructions_path == "workspace/AGENTS.md"`
   - `prompt_path == "input/prompt.txt"`
   - `skill_path` is repo-relative and never an isolated temp path
@@ -265,7 +290,8 @@ Create the deterministic Stage 2 sealing step that turns hard-gated Stage 1 arti
   - `<isolated_root>/input/prompt.txt`
   - `<isolated_root>/skill/SKILL.md`
   - `<isolated_root>/home/`
-- P07 returns `cwd = <isolated_root>/workspace` and `HOME = <isolated_root>/home` for later P08 worker launch.
+- P07 returns `cwd = <isolated_root>/workspace`, `HOME = <isolated_root>/home`, and `CODEX_HOME = <isolated_root>/home/.codex` for later P08 worker launch.
+- P08 verifies the returned execution-environment values against `outgoing_input.json` before launching the worker.
 - The isolated workspace uses only copied regular files and real directories; no symlink, hard-link, or in-place file reference back to the repo tree, `<run_root>`, or user home is allowed.
 - Repo-root `AGENTS.md` contamination is blocked because the worker `cwd` is outside the repo tree.
 - Home-tree `AGENTS.md` contamination is blocked because ancestor traversal from the worker `cwd` cannot enter the current user HOME tree.

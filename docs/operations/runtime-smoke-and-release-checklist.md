@@ -33,6 +33,7 @@ codex login
 4. 当前 runtime contract 已知
 
 - [codex-runtime-contract.md](/storage/emulated/0/projects/view_panel/docs/operations/codex-runtime-contract.md)
+- startup 会先写 `runs/<run_id>/audit/runtime_contract_status.json`，然后才决定是否继续进入三阶段
 
 5. 你知道当前 protocol bundle 还是 placeholder
 
@@ -84,11 +85,12 @@ make build
 make smoke
 ```
 
-这会做三件事：
+这会做四件事：
 
 1. 构建二进制
-2. 用固定 smoke dataset 跑真实全流程
-3. 自动找到最新 `run_id` 并执行 `smoke-check`
+2. 运行 startup runtime-contract check
+3. 用固定 smoke dataset 跑真实全流程
+4. 自动找到最新 `run_id` 并执行 `smoke-check`
 
 ### 3. Smoke dataset
 
@@ -118,7 +120,44 @@ out/smoke/runs/<run_id>/
 make smoke-check RUN_ID=<run_id>
 ```
 
+### 5. 相关 CLI 控制
+
+真实 smoke 或人工运行时，当前还支持这些 startup 控制：
+
+- `-review-enabled`
+  - 默认 `true`
+- `-worker-timeout-ms`
+  - 默认 `0`，表示不启用 per-worker timeout
+- `-max-attempts-per-persona`
+  - 默认 `1`，当前只支持 `1`
+- `-forbidden-tool-name`
+  - 可重复传入或逗号分隔，进入 Stage 2 forbidden-tool policy
+
 ## 结果判读
+
+### Startup runtime contract
+
+先看：
+
+- `audit/runtime_contract_status.json`
+
+这里会记录 startup runtime-contract enforcement 结果。当前要点：
+
+1. `status == "blocked"`
+   - 说明 startup 在进入三阶段前就已经 fail closed
+2. `status == "warning"`
+   - 说明允许继续运行，但有 warning facts
+3. `status == "ok"`
+   - 说明本地 startup contract 检查通过
+
+重点字段：
+
+- `blocking_errors`
+- `warnings`
+- `observed_cli_version`
+- `pinned_cli_version`
+- `launcher_form`
+- `protocol_bundle_path`
 
 ### Stage 1: Prepare
 
@@ -215,6 +254,9 @@ codex login
 然后再看：
 
 - [codex-runtime-contract.md](/storage/emulated/0/projects/view_panel/docs/operations/codex-runtime-contract.md)
+- `runs/<run_id>/audit/runtime_contract_status.json`
+
+如果这里已经是 `status == "blocked"`，后面的 Stage 1/2/3 问题就不是首要矛盾。
 
 ### 3. Prepare gate block
 

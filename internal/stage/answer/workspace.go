@@ -69,22 +69,21 @@ type SealWorkspacesRequest struct {
 }
 
 type SealWorkspacesResult struct {
-	Blocked   bool
+	Blocked    bool
 	PersonaIDs []string
 	Workspaces []SealedPersonaWorkspace
 }
 
 type SealedPersonaWorkspace struct {
-	PersonaID            string `json:"persona_id"`
-	RunRoot              string `json:"run_root"`
-	RunPersonaDir        string `json:"run_persona_dir"`
-	OutgoingInputPath    string `json:"outgoing_input_path"`
-	IsolatedRoot         string `json:"isolated_root"`
-	CWD                  string `json:"cwd"`
-	HomeDir              string `json:"home_dir"`
-	WorkspaceAgentsPath  string `json:"workspace_agents_path"`
-	PromptPath           string `json:"prompt_path"`
-	SkillPath            string `json:"skill_path"`
+	PersonaID           string             `json:"persona_id"`
+	RunRoot             string             `json:"run_root"`
+	RunPersonaDir       string             `json:"run_persona_dir"`
+	OutgoingInputPath   string             `json:"outgoing_input_path"`
+	IsolatedRoot        string             `json:"isolated_root"`
+	ExecutionEnv        SealedExecutionEnv `json:"execution_env"`
+	WorkspaceAgentsPath string             `json:"workspace_agents_path"`
+	PromptPath          string             `json:"prompt_path"`
+	SkillPath           string             `json:"skill_path"`
 }
 
 type prepareGateStatus struct {
@@ -103,6 +102,9 @@ type outgoingInputRecord struct {
 	SchemaVersion             string `json:"schema_version"`
 	Stage                     string `json:"stage"`
 	PersonaID                 string `json:"persona_id"`
+	ExecutionCWD              string `json:"execution_cwd"`
+	ExecutionHomeDir          string `json:"execution_home_dir"`
+	ExecutionCodexHomeDir     string `json:"execution_codex_home_dir"`
 	AgentInstructionsPath     string `json:"agent_instructions_path"`
 	AgentInstructionsSHA256   string `json:"agent_instructions_sha256"`
 	PromptPath                string `json:"prompt_path"`
@@ -139,7 +141,7 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 	}
 
 	result := SealWorkspacesResult{
-		Blocked:   !gate.CanProceedToStage2,
+		Blocked:    !gate.CanProceedToStage2,
 		PersonaIDs: append([]string(nil), gate.PersonaIDs...),
 		Workspaces: make([]SealedPersonaWorkspace, 0, len(gate.PersonaIDs)),
 	}
@@ -264,7 +266,8 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 		isolatedInputDir := filepath.Join(isolatedRoot, "input")
 		isolatedSkillDir := filepath.Join(isolatedRoot, "skill")
 		isolatedHomeDir := filepath.Join(isolatedRoot, "home")
-		for _, dirPath := range []string{isolatedWorkspaceDir, isolatedInputDir, isolatedSkillDir, isolatedHomeDir} {
+		isolatedCodexHomeDir := filepath.Join(isolatedHomeDir, ".codex")
+		for _, dirPath := range []string{isolatedWorkspaceDir, isolatedInputDir, isolatedSkillDir, isolatedHomeDir, isolatedCodexHomeDir} {
 			if err := os.MkdirAll(dirPath, 0o755); err != nil {
 				return SealWorkspacesResult{}, fmt.Errorf("create isolated directory %s for %s: %w", dirPath, personaID, err)
 			}
@@ -284,10 +287,14 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 		}
 
 		combinedSHA := lengthPrefixedSHA256Hex(agentsBytes, promptBytes, skillBytes)
+		executionEnv := sealedExecutionEnvForRoot(isolatedRoot)
 		outgoing := outgoingInputRecord{
 			SchemaVersion:             answerOutgoingInputSchemaV1,
 			Stage:                     answerStage,
 			PersonaID:                 personaID,
+			ExecutionCWD:              executionEnv.CWD,
+			ExecutionHomeDir:          executionEnv.HomeDir,
+			ExecutionCodexHomeDir:     executionEnv.CodexHomeDir,
 			AgentInstructionsPath:     workspaceAgentsArtifactName,
 			AgentInstructionsSHA256:   agentsSHA,
 			PromptPath:                inputPromptArtifactName,
@@ -308,8 +315,7 @@ func SealWorkspaces(req SealWorkspacesRequest) (SealWorkspacesResult, error) {
 			RunPersonaDir:       answerPersonaDir,
 			OutgoingInputPath:   outgoingInputPath,
 			IsolatedRoot:        isolatedRoot,
-			CWD:                 isolatedWorkspaceDir,
-			HomeDir:             isolatedHomeDir,
+			ExecutionEnv:        executionEnv,
 			WorkspaceAgentsPath: isolatedAgentsPath,
 			PromptPath:          isolatedPromptPath,
 			SkillPath:           isolatedSkillPath,
@@ -403,6 +409,15 @@ func parseOutgoingInputRecord(data []byte) (outgoingInputRecord, error) {
 	}
 	if record.Stage != answerStage {
 		return outgoingInputRecord{}, fmt.Errorf("unexpected stage %q", record.Stage)
+	}
+	if strings.TrimSpace(record.ExecutionCWD) == "" {
+		return outgoingInputRecord{}, errors.New("missing execution_cwd")
+	}
+	if strings.TrimSpace(record.ExecutionHomeDir) == "" {
+		return outgoingInputRecord{}, errors.New("missing execution_home_dir")
+	}
+	if strings.TrimSpace(record.ExecutionCodexHomeDir) == "" {
+		return outgoingInputRecord{}, errors.New("missing execution_codex_home_dir")
 	}
 	if record.AgentInstructionsPath != workspaceAgentsArtifactName {
 		return outgoingInputRecord{}, fmt.Errorf("unexpected agent_instructions_path %q", record.AgentInstructionsPath)

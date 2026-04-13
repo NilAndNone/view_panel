@@ -101,6 +101,28 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 		})
 	}
 
+	if cfg.WorkerTimeoutMS < 0 {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:    "range",
+			Field:   "worker_timeout_ms",
+			Message: "worker_timeout_ms must be >= 0",
+		})
+	}
+
+	if cfg.MaxAttemptsPerPersona < 1 {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:    "range",
+			Field:   "max_attempts_per_persona",
+			Message: "max_attempts_per_persona must be >= 1",
+		})
+	} else if cfg.MaxAttemptsPerPersona != 1 {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:    "unsupported_value",
+			Field:   "max_attempts_per_persona",
+			Message: "max_attempts_per_persona currently supports only 1",
+		})
+	}
+
 	if raw.ModelProvided && cfg.Model == "" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Code:    "required",

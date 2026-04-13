@@ -59,6 +59,13 @@ Startup:
 - `internal/config/config.go`
 - `internal/schema/validate.go`
 
+Current startup surface also includes:
+
+- `review_enabled`
+- `worker_timeout_ms`
+- `max_attempts_per_persona`
+- `forbidden_tool_names`
+
 Shared runtime foundations:
 
 - `internal/storage/layout.go`
@@ -94,6 +101,10 @@ Render chain:
 Pinned Codex runtime assumptions are documented here:
 
 - `docs/operations/codex-runtime-contract.md`
+
+Startup writes the current-run runtime-contract guard result to:
+
+- `runs/<run_id>/audit/runtime_contract_status.json`
 
 Checked-in protocol bundle:
 
@@ -162,6 +173,7 @@ Audit artifacts:
 
 - `runs/<run_id>/audit/events.jsonl`
 - `runs/<run_id>/audit/errors.log`
+- `runs/<run_id>/audit/runtime_contract_status.json`
 
 ## Input Contracts You Must Not Drift
 
@@ -180,6 +192,9 @@ Stage 2 sealing rules:
 - `P07` must not open `dispatch_input_v1.json`
 - sealing reads only Stage 1 `agents.md`, `prompt.txt`, and `hashes.json`
 - `outgoing_input.json` is the canonical Stage 2 seal record
+- the sealed record currently includes `execution_cwd`, `execution_home_dir`, and `execution_codex_home_dir`
+- P07/P08 must keep `HOME` and `CODEX_HOME` inside the isolated worker boundary
+- P08 verifies the sealed env and input hashes against `outgoing_input.json` before launch
 
 Authoritative final output rule:
 

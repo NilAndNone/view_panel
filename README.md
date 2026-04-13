@@ -22,7 +22,7 @@
 - `third_party/codex-protocol/0.0.0/` 目前是 checked-in placeholder bundle，不是 live-generated protocol export
 - `internal/appserver/client.go` 当前按连续 JSON 流读取 stdout；如果真实协议使用 framed stdio，需要进一步适配
 - 多个 `--materials` 输入当前使用保守的确定性策略，不是完整的多文档 merge contract
-- prepare soft review 仍通过接口 seam 注入 reviewer，尚未绑定一个固定的 review runtime
+- runtime contract 启动检查当前只覆盖本地 CLI/version/launcher/bundle 约束与 warning facts，不替代真实协议导出或 framed transport 适配
 
 ## 仓库结构
 
@@ -68,6 +68,8 @@
 当前 runtime contract 约束：
 
 - pinned CLI contract 记录在 [codex-runtime-contract.md](/storage/emulated/0/projects/view_panel/docs/operations/codex-runtime-contract.md)
+- startup 会先执行 runtime-contract enforcement，再进入三阶段运行
+- blocking / warning 结果会写到 `runs/<run_id>/audit/runtime_contract_status.json`
 - canonical launcher 是 `codex app-server --listen stdio://`
 - 如果登录态无效，worker execution 应该 fail closed
 
@@ -88,7 +90,11 @@ go build -o go_bin ./cmd/worldview-panel
   -persona-set ./runtime/persona-index.json \
   -outdir ./out \
   -concurrency 6 \
-  -model gpt-5.4
+  -model gpt-5.4 \
+  -review-enabled=true \
+  -worker-timeout-ms=0 \
+  -max-attempts-per-persona=1 \
+  -forbidden-tool-name shell,web
 ```
 
 运行后，产物会写到：
@@ -125,7 +131,7 @@ make smoke
 
 ## CLI 参数
 
-当前 CLI 只接受 6 个启动参数：
+当前 CLI 启动参数：
 
 - `-question`
   - 必填
@@ -147,8 +153,26 @@ make smoke
 - `-model`
   - 可选
   - 默认 `gpt-5.3-codex-spark`
+- `-review-enabled`
+  - 可选
+  - 默认 `true`
+  - 控制是否执行 prepare soft review
+- `-worker-timeout-ms`
+  - 可选
+  - 默认 `0`
+  - `0` 表示不启用 per-worker timeout
+- `-max-attempts-per-persona`
+  - 可选
+  - 默认 `1`
+  - 当前只支持 `1`
+- `-forbidden-tool-name`
+  - 可选
+  - 可重复传入，也可以传逗号分隔列表
+  - startup 会做去重、trim 和小写归一化
+  - 会进入 Stage 2 batch policy 的 forbidden tool 检查
 
 CLI startup validation 失败时会向 `stderr` 输出 machine-readable JSON，并返回非零退出码。
+在 startup validation 通过后，runtime 还会执行 runtime-contract check；如果是 blocking mismatch，会在写出 `runs/<run_id>/audit/runtime_contract_status.json` 后直接停止。
 
 ## 输入约定
 
@@ -253,6 +277,7 @@ runs/<run_id>/
 - `03_render/status.json`
 - `audit/events.jsonl`
 - `audit/errors.log`
+- `audit/runtime_contract_status.json`
 
 ## 三阶段说明
 

@@ -19,6 +19,7 @@ import (
 	"view_panel/internal/materials"
 	"view_panel/internal/orchestrator"
 	"view_panel/internal/persona"
+	"view_panel/internal/runtimecontract"
 	"view_panel/internal/schema"
 	"view_panel/internal/stage/answer"
 	"view_panel/internal/stage/prepare"
@@ -56,6 +57,20 @@ type statusError struct {
 	err    error
 }
 
+type startupDeps struct {
+	newRunID                   func() string
+	locateRepoRoot             func() (string, error)
+	ensureRunLayout            func(string) error
+	checkRuntimeContract       func(string) runtimecontract.Result
+	writeRuntimeContractStatus func(string, runtimecontract.Result) error
+	userHomeDir                func() (string, error)
+	chooseIsolatedBaseDir      func(string, string, string) (string, error)
+	newPrepareReviewer         func(string, []string, string) prepare.AdvisoryReviewer
+	runPrepareStage            func(context.Context, config.StartupConfig, string, prepare.AdvisoryReviewer) (prepare.PrepareResult, error)
+	runAnswerStage             func(context.Context, config.StartupConfig, string, string, string, string, []string) (answer.AnswerBatchResult, error)
+	runOrchestrator            func(context.Context, orchestrator.RunRequest) (orchestrator.RunResult, error)
+}
+
 func (e *statusError) Error() string {
 	if e == nil || e.err == nil {
 		return ""
@@ -71,9 +86,9 @@ func (e *statusError) Unwrap() error {
 }
 
 type renderAppServerAdapter struct {
-	repoRoot string
+	repoRoot  string
 	extraArgs []string
-	homeDir  string
+	homeDir   string
 }
 
 func main() {
@@ -114,12 +129,17 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 	flagSet.SetOutput(io.Discard)
 
 	var materials stringSliceFlag
+	var forbiddenToolNames stringSliceFlag
 	question := flagSet.String("question", "", "")
 	personaSet := flagSet.String("persona-set", "", "")
 	outdir := flagSet.String("outdir", "", "")
 	concurrency := flagSet.Int("concurrency", 0, "")
 	model := flagSet.String("model", "", "")
+	reviewEnabled := flagSet.Bool("review-enabled", config.DefaultReviewEnabled, "")
+	workerTimeoutMS := flagSet.Int("worker-timeout-ms", 0, "")
+	maxAttemptsPerPersona := flagSet.Int("max-attempts-per-persona", 0, "")
 	flagSet.Var(&materials, "materials", "")
+	flagSet.Var(&forbiddenToolNames, "forbidden-tool-name", "")
 
 	if err := flagSet.Parse(args); err != nil {
 		return config.StartupConfig{}, nil, err
@@ -134,18 +154,26 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 	})
 
 	raw := config.RawStartupInput{
-		Question:            *question,
-		Materials:           append([]string(nil), materials...),
-		PersonaSet:          *personaSet,
-		OutDir:              *outdir,
-		Concurrency:         *concurrency,
-		Model:               *model,
-		QuestionProvided:    provided["question"],
-		MaterialsProvided:   provided["materials"],
-		PersonaSetProvided:  provided["persona-set"],
-		OutDirProvided:      provided["outdir"],
-		ConcurrencyProvided: provided["concurrency"],
-		ModelProvided:       provided["model"],
+		Question:                     *question,
+		Materials:                    append([]string(nil), materials...),
+		PersonaSet:                   *personaSet,
+		OutDir:                       *outdir,
+		Concurrency:                  *concurrency,
+		Model:                        *model,
+		ReviewEnabled:                *reviewEnabled,
+		WorkerTimeoutMS:              *workerTimeoutMS,
+		MaxAttemptsPerPersona:        *maxAttemptsPerPersona,
+		ForbiddenToolNames:           append([]string(nil), forbiddenToolNames...),
+		QuestionProvided:             provided["question"],
+		MaterialsProvided:            provided["materials"],
+		PersonaSetProvided:           provided["persona-set"],
+		OutDirProvided:               provided["outdir"],
+		ConcurrencyProvided:          provided["concurrency"],
+		ModelProvided:                provided["model"],
+		ReviewEnabledProvided:        provided["review-enabled"],
+		WorkerTimeoutMSProvided:      provided["worker-timeout-ms"],
+		MaxAttemptsPerPersonaProvided: provided["max-attempts-per-persona"],
+		ForbiddenToolNamesProvided:   provided["forbidden-tool-name"],
 	}
 
 	cfg := config.NormalizeStartupConfig(raw)
@@ -154,38 +182,56 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 }
 
 func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) error {
-	runID := newRunID()
+	return handoffValidatedStartupWithDeps(ctx, cfg, startupDeps{})
+}
+
+func handoffValidatedStartupWithDeps(ctx context.Context, cfg config.StartupConfig, deps startupDeps) error {
+	deps = deps.withDefaults()
+
+	runID := deps.newRunID()
 	runRoot := storage.RunRoot(cfg.OutDir, runID)
 
-	repoRoot, err := locateRepoRoot()
+	repoRoot, err := deps.locateRepoRoot()
 	if err != nil {
 		return withStatus("startup_failed", err)
 	}
-	if err := storage.EnsureRunLayout(runRoot); err != nil {
+	if err := deps.ensureRunLayout(runRoot); err != nil {
 		return withStatus("startup_failed", fmt.Errorf("ensure run layout: %w", err))
 	}
 
-	homeDir, err := os.UserHomeDir()
+	contractResult := deps.checkRuntimeContract(repoRoot)
+	if err := deps.writeRuntimeContractStatus(runRoot, contractResult); err != nil {
+		return withStatus("startup_failed", fmt.Errorf("write runtime contract status: %w", err))
+	}
+	if contractResult.Status == runtimecontract.StatusBlocked {
+		return withStatus("startup_failed", runtimeContractBlockedError(contractResult))
+	}
+
+	homeDir, err := deps.userHomeDir()
 	if err != nil {
 		return withStatus("startup_failed", fmt.Errorf("resolve current user home: %w", err))
 	}
-	isolatedBaseDir, err := chooseIsolatedBaseDir(repoRoot, runRoot, homeDir)
+	isolatedBaseDir, err := deps.chooseIsolatedBaseDir(repoRoot, runRoot, homeDir)
 	if err != nil {
 		return withStatus("startup_failed", err)
 	}
 
 	modelArgs := modelExtraArgs(cfg.Model)
+	var prepareReviewer prepare.AdvisoryReviewer
+	if cfg.ReviewEnabled {
+		prepareReviewer = deps.newPrepareReviewer(repoRoot, modelArgs, homeDir)
+	}
 	renderAdapter := renderAppServerAdapter{
-		repoRoot: repoRoot,
+		repoRoot:  repoRoot,
 		extraArgs: modelArgs,
-		homeDir:  homeDir,
+		homeDir:   homeDir,
 	}
 
-	_, err = orchestrator.Run(ctx, orchestrator.RunRequest{
+	_, err = deps.runOrchestrator(ctx, orchestrator.RunRequest{
 		RunID: runID,
 		Prepare: orchestrator.PrepareStageInvocation{
 			Run: func(ctx context.Context, req orchestrator.PrepareStageRequest) (orchestrator.PrepareStageResult, error) {
-				result, err := runPrepareStage(ctx, cfg, runRoot)
+				result, err := deps.runPrepareStage(ctx, cfg, runRoot, prepareReviewer)
 				if err != nil {
 					return orchestrator.PrepareStageResult{}, err
 				}
@@ -198,14 +244,14 @@ func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) erro
 		},
 		Answer: orchestrator.AnswerStageInvocation{
 			Run: func(ctx context.Context, req orchestrator.AnswerStageRequest) (orchestrator.AnswerStageResult, error) {
-				result, err := runAnswerStage(ctx, cfg, repoRoot, runRoot, isolatedBaseDir, req.RunID, modelArgs)
+				result, err := deps.runAnswerStage(ctx, cfg, repoRoot, runRoot, isolatedBaseDir, req.RunID, modelArgs)
 				if err != nil {
 					return orchestrator.AnswerStageResult{}, err
 				}
 				return orchestrator.AnswerStageResult{
-					RunID:          req.RunID,
+					RunID:           req.RunID,
 					AnswerBatchPath: result.ArtifactPath,
-					Payload:        result,
+					Payload:         result,
 				}, nil
 			},
 			Request: orchestrator.AnswerStageRequest{RunID: runID},
@@ -217,12 +263,12 @@ func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) erro
 					return orchestrator.RenderAggregateResult{}, err
 				}
 				return orchestrator.RenderAggregateResult{
-					RunID:                   req.RunID,
-					RawRenderInputPath:      result.RawRenderInputPath,
+					RunID:                    req.RunID,
+					RawRenderInputPath:       result.RawRenderInputPath,
 					CertifiedRenderInputPath: result.CertifiedRenderInputPath,
-					RawAvailable:            result.RawAvailable,
-					CertifiedAvailable:      result.CertifiedAvailable,
-					Payload:                 result,
+					RawAvailable:             result.RawAvailable,
+					CertifiedAvailable:       result.CertifiedAvailable,
+					Payload:                  result,
 				}, nil
 			},
 			AggregateRequest: orchestrator.RenderAggregateRequest{RunID: runID},
@@ -232,9 +278,9 @@ func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) erro
 					return orchestrator.RenderStageResult{}, err
 				}
 				return orchestrator.RenderStageResult{
-					RunID:     req.RunID,
+					RunID:      req.RunID,
 					StatusPath: result.StatusPath,
-					Payload:   result,
+					Payload:    result,
 				}, nil
 			},
 			Request: orchestrator.RenderStageRequest{RunID: runID},
@@ -245,6 +291,78 @@ func handoffValidatedStartup(ctx context.Context, cfg config.StartupConfig) erro
 	}
 
 	return nil
+}
+
+func (d startupDeps) withDefaults() startupDeps {
+	defaults := startupDeps{
+		newRunID:        newRunID,
+		locateRepoRoot:  locateRepoRoot,
+		ensureRunLayout: storage.EnsureRunLayout,
+		checkRuntimeContract: func(repoRoot string) runtimecontract.Result {
+			return runtimecontract.Checker{
+				RepositoryRoot:           repoRoot,
+				PinnedCLIVersion:         runtimecontract.DefaultPinnedCLIVersion,
+				PinnedLauncherForm:       runtimecontract.CanonicalLauncherForm,
+				LauncherForm:             runtimecontract.CanonicalLauncherForm,
+				TransportFramingVerified: false,
+			}.Check()
+		},
+		writeRuntimeContractStatus: writeRuntimeContractStatus,
+		userHomeDir:                os.UserHomeDir,
+		chooseIsolatedBaseDir:      chooseIsolatedBaseDir,
+		newPrepareReviewer:         prepare.NewAppServerReviewer,
+		runPrepareStage:            runPrepareStage,
+		runAnswerStage:             runAnswerStage,
+		runOrchestrator:            orchestrator.Run,
+	}
+
+	if d.newRunID != nil {
+		defaults.newRunID = d.newRunID
+	}
+	if d.locateRepoRoot != nil {
+		defaults.locateRepoRoot = d.locateRepoRoot
+	}
+	if d.ensureRunLayout != nil {
+		defaults.ensureRunLayout = d.ensureRunLayout
+	}
+	if d.checkRuntimeContract != nil {
+		defaults.checkRuntimeContract = d.checkRuntimeContract
+	}
+	if d.writeRuntimeContractStatus != nil {
+		defaults.writeRuntimeContractStatus = d.writeRuntimeContractStatus
+	}
+	if d.userHomeDir != nil {
+		defaults.userHomeDir = d.userHomeDir
+	}
+	if d.chooseIsolatedBaseDir != nil {
+		defaults.chooseIsolatedBaseDir = d.chooseIsolatedBaseDir
+	}
+	if d.newPrepareReviewer != nil {
+		defaults.newPrepareReviewer = d.newPrepareReviewer
+	}
+	if d.runPrepareStage != nil {
+		defaults.runPrepareStage = d.runPrepareStage
+	}
+	if d.runAnswerStage != nil {
+		defaults.runAnswerStage = d.runAnswerStage
+	}
+	if d.runOrchestrator != nil {
+		defaults.runOrchestrator = d.runOrchestrator
+	}
+
+	return defaults
+}
+
+func writeRuntimeContractStatus(runRoot string, result runtimecontract.Result) error {
+	return storage.WriteJSON(storage.RuntimeContractStatusPath(runRoot), result)
+}
+
+func runtimeContractBlockedError(result runtimecontract.Result) error {
+	details := strings.TrimSpace(strings.Join(result.BlockingErrors, "; "))
+	if details == "" {
+		return runtimecontract.ErrBlocked
+	}
+	return fmt.Errorf("%w: %s", runtimecontract.ErrBlocked, details)
 }
 
 func emitJSON(writer io.Writer, value any) {
@@ -280,7 +398,7 @@ func newRunID() string {
 	return fmt.Sprintf("%s-p%d", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid())
 }
 
-func runPrepareStage(ctx context.Context, cfg config.StartupConfig, runRoot string) (prepare.PrepareResult, error) {
+func runPrepareStage(ctx context.Context, cfg config.StartupConfig, runRoot string, reviewer prepare.AdvisoryReviewer) (prepare.PrepareResult, error) {
 	if err := ctx.Err(); err != nil {
 		return prepare.PrepareResult{}, err
 	}
@@ -304,6 +422,7 @@ func runPrepareStage(ctx context.Context, cfg config.StartupConfig, runRoot stri
 			AssumptionsAndConstraints: materialFields.AssumptionsAndConstraints,
 		},
 		Personas: personas,
+		Reviewer: reviewer,
 	})
 }
 
@@ -444,19 +563,25 @@ func runAnswerStage(ctx context.Context, cfg config.StartupConfig, repoRoot, run
 		AnswerRoot:            storage.AnswerRoot(runRoot),
 		Workspaces:            workspaces,
 		MaxConcurrency:        cfg.Concurrency,
-		WorkerTimeoutMS:       0,
-		MaxAttemptsPerPersona: 1,
+		WorkerTimeoutMS:       cfg.WorkerTimeoutMS,
+		MaxAttemptsPerPersona: cfg.MaxAttemptsPerPersona,
+		ForbiddenToolNames:    append([]string(nil), cfg.ForbiddenToolNames...),
 		ExtraArgs:             append([]string(nil), extraArgs...),
 	})
 }
 
 func startAnswerAppServer(ctx context.Context, launchContext answer.AppServerLaunchContext) (answer.StartedAppServer, error) {
-	return appserver.StartAppServer(ctx, appserver.AppServerLaunchContext{
+	return appserver.StartAppServer(ctx, translateAnswerLaunchContext(launchContext))
+}
+
+func translateAnswerLaunchContext(launchContext answer.AppServerLaunchContext) appserver.AppServerLaunchContext {
+	return appserver.AppServerLaunchContext{
 		ExtraArgs:               append([]string(nil), launchContext.ExtraArgs...),
 		Environment:             cloneStringMap(launchContext.Environment),
 		CurrentWorkingDirectory: launchContext.CurrentWorkingDirectory,
 		HomeDir:                 launchContext.HomeDir,
-	})
+		CodexHomeDir:            launchContext.CodexHomeDir,
+	}
 }
 
 func runAnswerSingleTurn(ctx context.Context, client answer.StartedAppServer, options answer.RunSingleTurnOptions) (answer.SingleTurnRunResult, error) {
@@ -478,7 +603,7 @@ func translateAnswerSingleTurnResult(result appserver.RunSingleTurnResult) answe
 	}
 
 	return answer.SingleTurnRunResult{
-		TerminalOutcome: string(result.TerminalOutcome),
+		TerminalOutcome:  string(result.TerminalOutcome),
 		LastReachedPhase: string(result.LastReachedPhase),
 		CloseOutcomeKind: string(result.CloseOutcome.Kind),
 		ThreadID:         result.ThreadID,
@@ -525,12 +650,12 @@ func runRenderAggregateStage(ctx context.Context, runID, runRoot, answerBatchPat
 
 func runRenderStage(ctx context.Context, runID, runRoot, rawRenderInputPath, certifiedRenderInputPath string, adapter renderAppServerAdapter) (render.RunRenderStageResult, error) {
 	return render.RunRenderStage(ctx, render.RunRenderStageRequest{
-		RunID:                   runID,
-		RenderRoot:              storage.RenderRoot(runRoot),
-		RawRenderInputPath:      rawRenderInputPath,
+		RunID:                    runID,
+		RenderRoot:               storage.RenderRoot(runRoot),
+		RawRenderInputPath:       rawRenderInputPath,
 		CertifiedRenderInputPath: certifiedRenderInputPath,
-		SkillPath:               renderSkillPath,
-		AppServer:               adapter,
+		SkillPath:                renderSkillPath,
+		AppServer:                adapter,
 	})
 }
 
@@ -539,48 +664,24 @@ func (a renderAppServerAdapter) ExecuteRenderTurn(ctx context.Context, req rende
 	if err != nil {
 		return render.AppServerRenderResponse{}, fmt.Errorf("resolve render skill: %w", err)
 	}
-	skillBytes, err := os.ReadFile(skillPath)
-	if err != nil {
-		return render.AppServerRenderResponse{}, fmt.Errorf("read render skill: %w", err)
-	}
 	renderInputBytes, err := os.ReadFile(req.RenderInputPath)
 	if err != nil {
 		return render.AppServerRenderResponse{}, fmt.Errorf("read render input: %w", err)
 	}
 
-	client, err := appserver.StartAppServer(ctx, appserver.AppServerLaunchContext{
-		ExtraArgs:               append([]string(nil), a.extraArgs...),
-		Environment:             map[string]string{"HOME": a.homeDir},
-		CurrentWorkingDirectory: req.WorkingDirectory,
-		HomeDir:                 a.homeDir,
+	panelJSON, err := appserver.RunSkillTurn(ctx, appserver.SkillTurnRequest{
+		Operation: "render",
+		SkillPath: skillPath,
+		Payload:   renderInputBytes,
+		LaunchContext: appserver.AppServerLaunchContext{
+			ExtraArgs:               append([]string(nil), a.extraArgs...),
+			Environment:             map[string]string{"HOME": a.homeDir},
+			CurrentWorkingDirectory: req.WorkingDirectory,
+			HomeDir:                 a.homeDir,
+		},
 	})
 	if err != nil {
-		return render.AppServerRenderResponse{}, fmt.Errorf("start render app-server: %w", err)
-	}
-
-	result, err := appserver.RunSingleTurn(ctx, client, appserver.RunSingleTurnOptions{
-		Input: string(skillBytes) + "\n\n" + string(renderInputBytes),
-	})
-	if err != nil {
-		return render.AppServerRenderResponse{}, fmt.Errorf("run render turn: %w", err)
-	}
-
-	completed := result.CompletedItem
-	if completed == nil {
-		for _, item := range result.Transcript {
-			if item.AgentMessageCompletedEvent != nil {
-				completed = item.AgentMessageCompletedEvent
-				break
-			}
-		}
-	}
-	if completed == nil {
-		return render.AppServerRenderResponse{}, fmt.Errorf("render turn completed without an authoritative agent message")
-	}
-
-	panelJSON := strings.TrimSpace(completed.Item.PlainText())
-	if panelJSON == "" {
-		return render.AppServerRenderResponse{}, fmt.Errorf("render turn returned an empty authoritative agent message")
+		return render.AppServerRenderResponse{}, err
 	}
 
 	return render.AppServerRenderResponse{

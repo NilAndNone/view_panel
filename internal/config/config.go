@@ -6,37 +6,52 @@ import (
 )
 
 const (
-	DefaultOutDir      = "."
-	DefaultConcurrency = 1
-	DefaultModel       = "gpt-5.3-codex-spark"
+	DefaultOutDir               = "."
+	DefaultConcurrency          = 1
+	DefaultModel                = "gpt-5.3-codex-spark"
+	DefaultReviewEnabled        = true
+	DefaultWorkerTimeoutMS      = 0
+	DefaultMaxAttemptsPerPersona = 1
 )
 
 // StartupConfig is the canonical startup contract handed to later runtime layers
 // after defaults, normalization, and validation have completed.
 type StartupConfig struct {
-	Question    string   `json:"question"`
-	Materials   []string `json:"materials"`
-	PersonaSet  string   `json:"persona_set"`
-	OutDir      string   `json:"outdir"`
-	Concurrency int      `json:"concurrency"`
-	Model       string   `json:"model"`
+	Question              string   `json:"question"`
+	Materials             []string `json:"materials"`
+	PersonaSet            string   `json:"persona_set"`
+	OutDir                string   `json:"outdir"`
+	Concurrency           int      `json:"concurrency"`
+	Model                 string   `json:"model"`
+	ReviewEnabled         bool     `json:"review_enabled"`
+	WorkerTimeoutMS       int      `json:"worker_timeout_ms"`
+	MaxAttemptsPerPersona int      `json:"max_attempts_per_persona"`
+	ForbiddenToolNames    []string `json:"forbidden_tool_names"`
 }
 
 // RawStartupInput preserves explicit CLI state so validation can distinguish an
 // omitted optional field from an explicitly blank value.
 type RawStartupInput struct {
-	Question            string
-	Materials           []string
-	PersonaSet          string
-	OutDir              string
-	Concurrency         int
-	Model               string
-	QuestionProvided    bool
-	MaterialsProvided   bool
-	PersonaSetProvided  bool
-	OutDirProvided      bool
-	ConcurrencyProvided bool
-	ModelProvided       bool
+	Question                     string
+	Materials                    []string
+	PersonaSet                   string
+	OutDir                       string
+	Concurrency                  int
+	Model                        string
+	ReviewEnabled                bool
+	WorkerTimeoutMS              int
+	MaxAttemptsPerPersona        int
+	ForbiddenToolNames           []string
+	QuestionProvided             bool
+	MaterialsProvided            bool
+	PersonaSetProvided           bool
+	OutDirProvided               bool
+	ConcurrencyProvided          bool
+	ModelProvided                bool
+	ReviewEnabledProvided        bool
+	WorkerTimeoutMSProvided      bool
+	MaxAttemptsPerPersonaProvided bool
+	ForbiddenToolNamesProvided   bool
 }
 
 // NormalizeStartupConfig applies deterministic trimming, list splitting,
@@ -44,12 +59,16 @@ type RawStartupInput struct {
 // internal/schema.
 func NormalizeStartupConfig(raw RawStartupInput) StartupConfig {
 	return StartupConfig{
-		Question:    strings.TrimSpace(raw.Question),
-		Materials:   normalizeMaterials(raw.Materials),
-		PersonaSet:  strings.TrimSpace(raw.PersonaSet),
-		OutDir:      normalizeOutDir(raw.OutDir),
-		Concurrency: normalizeConcurrency(raw.Concurrency, raw.ConcurrencyProvided),
-		Model:       normalizeModel(raw.Model, raw.ModelProvided),
+		Question:              strings.TrimSpace(raw.Question),
+		Materials:             normalizeMaterials(raw.Materials),
+		PersonaSet:            strings.TrimSpace(raw.PersonaSet),
+		OutDir:                normalizeOutDir(raw.OutDir),
+		Concurrency:           normalizeConcurrency(raw.Concurrency, raw.ConcurrencyProvided),
+		Model:                 normalizeModel(raw.Model, raw.ModelProvided),
+		ReviewEnabled:         normalizeReviewEnabled(raw.ReviewEnabled, raw.ReviewEnabledProvided),
+		WorkerTimeoutMS:       normalizeWorkerTimeoutMS(raw.WorkerTimeoutMS, raw.WorkerTimeoutMSProvided),
+		MaxAttemptsPerPersona: normalizeMaxAttemptsPerPersona(raw.MaxAttemptsPerPersona, raw.MaxAttemptsPerPersonaProvided),
+		ForbiddenToolNames:    normalizeForbiddenToolNames(raw.ForbiddenToolNames),
 	}
 }
 
@@ -95,6 +114,55 @@ func normalizeModel(value string, provided bool) string {
 		return DefaultModel
 	}
 	return value
+}
+
+func normalizeReviewEnabled(value bool, provided bool) bool {
+	if !provided {
+		return DefaultReviewEnabled
+	}
+	return value
+}
+
+func normalizeWorkerTimeoutMS(value int, provided bool) int {
+	if !provided {
+		return DefaultWorkerTimeoutMS
+	}
+	return value
+}
+
+func normalizeMaxAttemptsPerPersona(value int, provided bool) int {
+	if !provided {
+		return DefaultMaxAttemptsPerPersona
+	}
+	return value
+}
+
+func normalizeForbiddenToolNames(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		parts := strings.Split(value, ",")
+		for _, part := range parts {
+			part = strings.ToLower(strings.TrimSpace(part))
+			if part == "" {
+				continue
+			}
+			if _, ok := seen[part]; ok {
+				continue
+			}
+			seen[part] = struct{}{}
+			normalized = append(normalized, part)
+		}
+	}
+
+	if len(normalized) == 0 {
+		return []string{}
+	}
+	return normalized
 }
 
 func canonicalizePathLike(value string) string {

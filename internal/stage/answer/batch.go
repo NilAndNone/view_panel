@@ -618,6 +618,10 @@ func readOptionalArtifact(path string) ([]byte, string) {
 }
 
 func normalizeForbiddenToolNames(input []string) []string {
+	if len(input) == 0 {
+		return []string{}
+	}
+
 	seen := map[string]struct{}{}
 	normalized := make([]string, 0, len(input))
 	for _, item := range input {
@@ -630,6 +634,9 @@ func normalizeForbiddenToolNames(input []string) []string {
 		}
 		seen[value] = struct{}{}
 		normalized = append(normalized, value)
+	}
+	if len(normalized) == 0 {
+		return []string{}
 	}
 	return normalized
 }

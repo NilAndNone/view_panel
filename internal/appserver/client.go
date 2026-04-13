@@ -27,6 +27,7 @@ type AppServerLaunchContext struct {
 	Environment             map[string]string
 	CurrentWorkingDirectory string
 	HomeDir                 string
+	CodexHomeDir            string
 }
 
 type Client struct {
@@ -66,18 +67,18 @@ type Client struct {
 }
 
 type ClientMessage struct {
-	Event                       JSONRPCEventEnvelope
-	AgentMessageCompletedEvent  *AgentMessageCompletedEventParams
+	Event                      JSONRPCEventEnvelope
+	AgentMessageCompletedEvent *AgentMessageCompletedEventParams
 }
 
 type ProcessStopKind string
 
 const (
-	ProcessStopKindGraceful    ProcessStopKind = "graceful"
+	ProcessStopKindGraceful      ProcessStopKind = "graceful"
 	ProcessStopKindAlreadyExited ProcessStopKind = "alreadyExited"
-	ProcessStopKindForcedKill  ProcessStopKind = "forcedKill"
-	ProcessStopKindCloseFailed ProcessStopKind = "closeFailed"
-	ProcessStopKindNotStarted  ProcessStopKind = "notStarted"
+	ProcessStopKindForcedKill    ProcessStopKind = "forcedKill"
+	ProcessStopKindCloseFailed   ProcessStopKind = "closeFailed"
+	ProcessStopKindNotStarted    ProcessStopKind = "notStarted"
 )
 
 type ProcessStopResult struct {
@@ -166,7 +167,7 @@ func StartAppServer(ctx context.Context, launchContext AppServerLaunchContext) (
 
 	cmd := exec.Command("codex", args...)
 	cmd.Dir = launchContext.CurrentWorkingDirectory
-	cmd.Env = buildLaunchEnvironment(launchContext)
+	cmd.Env = buildSealedLaunchEnvironment(launchContext)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -605,22 +606,28 @@ func (c *Client) processExitCode() int {
 	return c.exitCode
 }
 
-func buildLaunchEnvironment(launchContext AppServerLaunchContext) []string {
+func buildSealedLaunchEnvironment(launchContext AppServerLaunchContext) []string {
 	envMap := make(map[string]string, len(launchContext.Environment)+8)
 	for _, entry := range os.Environ() {
 		key, value, found := strings.Cut(entry, "=")
 		if !found {
 			continue
 		}
+		if key == "HOME" || key == "CODEX_HOME" {
+			continue
+		}
+		envMap[key] = value
+	}
+
+	for key, value := range launchContext.Environment {
 		envMap[key] = value
 	}
 
 	if launchContext.HomeDir != "" {
 		envMap["HOME"] = launchContext.HomeDir
 	}
-
-	for key, value := range launchContext.Environment {
-		envMap[key] = value
+	if launchContext.CodexHomeDir != "" {
+		envMap["CODEX_HOME"] = launchContext.CodexHomeDir
 	}
 
 	keys := make([]string, 0, len(envMap))

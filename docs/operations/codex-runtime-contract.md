@@ -9,8 +9,9 @@ This runtime contract is pinned and checked in for the bootstrap slice. The bund
 - Supported package: `@openai/codex`
 - Supported pinned version: `0.0.0`
 - Observed local CLI version on April 11, 2026: `codex-cli 0.0.0`
-- Canonical launcher: `codex app-server --listen stdio://`
-- Unsupported launcher forms: every other `codex app-server` argument order, transport flag, or alternate transport mode
+- Canonical launcher base: `codex app-server --listen stdio://`
+- Allowed launcher suffixes: startup may append additional arguments after that canonical base and transport form, for example `--model ...`
+- Unsupported launcher forms: any `codex app-server` argument order or transport mode that changes the canonical base prefix above
 
 ## Authentication Precondition
 
@@ -36,6 +37,7 @@ Bootstrap-slice note:
 - The repository does not yet contain live-generated Codex protocol exports.
 - The checked-in bundle is intentionally explicit placeholder data so downstream code can pin paths and fail closed on mismatch.
 - Regeneration later must replace placeholder payloads in place under the same versioned directory or advance the pinned version everywhere together.
+- Startup must resolve the pinned bundle with a repo-root-aware path. The local checker does not assume the current working directory when `third_party/codex-protocol/<version>/` is not supplied explicitly.
 
 ## Smoke Lifecycle Contract
 
@@ -48,14 +50,43 @@ The required smoke lifecycle is fixed to this order:
 6. Send `turn/start` with a minimal test message and require a terminal `item/completed.agentMessage` event.
 7. Request graceful shutdown and require process exit code `0` on the happy path.
 
+## Startup Enforcement Split
+
+Startup writes one local runtime-contract artifact before any stage work begins:
+
+- `runs/<run_id>/audit/runtime_contract_status.json`
+
+That artifact is the startup guard result for the current run.
+
+### Blocking startup checks
+
+Any failure in these checks must set `status == "blocked"` and stop the run before worker execution:
+
+- `codex` executable availability
+- `codex --version` observability
+- observed-versus-pinned CLI version equality
+- presence of the repo-root-resolved versioned protocol bundle path
+- completeness of required bundle files:
+  - `openapi.json`
+  - `messages.json`
+  - `schema-index.json`
+  - `smoke-transcript.jsonl`
+- launcher compatibility with canonical base `codex app-server --listen stdio://`
+
+These failures are recorded in `blocking_errors`.
+
+### Warning-only facts
+
+These facts do not block startup by themselves. They set `status == "warning"` when no blocking check has failed:
+
+- the checked-in protocol bundle is still placeholder content
+- transport framing is not strongly verified beyond the current sequential-JSON stdout assumption
+
+These facts are recorded in `warnings`.
+
 ## Mismatch Policy
 
-Execution must fail closed when any of the following drift from the pinned contract:
-- Pinned CLI version
-- Canonical launcher form
-- Authentication precondition
-- Versioned protocol bundle presence
-- Required JSON-RPC methods or terminal event shape recorded in `messages.json`
+Execution must fail closed when any blocking startup check drifts from the pinned contract. Warning-only facts remain visible in the audit artifact but do not stop the run by themselves.
 
 Ownership split:
 - P00 owns startup CLI/config/schema validation.
