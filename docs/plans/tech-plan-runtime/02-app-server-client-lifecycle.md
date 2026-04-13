@@ -9,6 +9,7 @@ consumes:
   - docs/plans/tech-plan-runtime/00-cli-config-schema-validation.md
   - docs/plans/tech-plan-runtime/01-codex-runtime-contract.md
 produces:
+  - internal/appserver/stream.go
   - internal/appserver/client.go
   - internal/appserver/messages.go
   - internal/appserver/runner.go
@@ -27,6 +28,7 @@ Implement a thin, runtime-only JSON-RPC lifecycle for exactly one Codex app-serv
 
 # Scope
 - Own only the app-server transport and lifecycle for one turn in `internal/appserver/`:
+  - `internal/appserver/stream.go`: transport probing and decode support for framed `Content-Length` stdio with sequential JSON fallback.
   - `internal/appserver/messages.go`: protocol message models, request IDs, and request/response/event payloads for this lifecycle.
   - `internal/appserver/client.go`: process launch wrapper around `codex app-server --listen stdio://`, JSON-RPC transport, stream ownership, launch context contract, and in-flight request correlation.
   - `internal/appserver/runner.go`: ordered lifecycle orchestration for one configured thread/turn.
@@ -87,6 +89,11 @@ Implement a thin, runtime-only JSON-RPC lifecycle for exactly one Codex app-serv
       - `stdin`: only request encoder writes.
       - `stdout`: only protocol decoder reads.
       - `stderr`: buffered capture for diagnostics, never parsed as JSON-RPC.
+   - Use a dedicated decoder abstraction for stdout:
+      - probe once for `Content-Length`-framed transport after leading transport whitespace
+      - decode framed stdio when that header form is present
+      - otherwise fall back to sequential JSON decoding
+      - keep transport probing/decoding ownership inside `internal/appserver/stream.go` instead of scattering it across stage code
    - Implement `sendRequest(ctx, method, params)` with:
       - request ID increment from atomic counter.
       - dedicated response channel map keyed by ID.
@@ -148,7 +155,7 @@ Implement a thin, runtime-only JSON-RPC lifecycle for exactly one Codex app-serv
             - send `turn/interrupt` exactly once.
             - treat `turn/interrupt` as write/flush-only (do not wait for a separate interrupt RPC response budget).
             - start the single 5s interrupt grace budget immediately **before** the `turn/interrupt` write/flush attempt.
-            - `turn/interrupt` write/flush must complete or abort within that same 5s budget; it must not block beyond it.
+            - the implementation currently uses that same 5s budget for the post-interrupt terminal wait; it does not yet enforce a separately cancelable write boundary around the `turn/interrupt` send itself.
             - any terminal wait for interrupt handling must fit inside that same 5s budget.
             - any interrupt acknowledgement observed in that window is optional/diagnostic and does not extend the budget.
             - success branch (terminal completes within grace):
@@ -209,6 +216,7 @@ Implement a thin, runtime-only JSON-RPC lifecycle for exactly one Codex app-serv
   - close/grace wait (`Close`): 10s, then kill.
 - Transport and lifecycle ownership are non-ambiguous:
   - `client.go` alone owns all stdio pipes and message codec wiring.
+  - `stream.go` owns stdout transport probing plus framed/sequential decode details.
   - `runner.go` does not spawn parsers/writers or touch pipes directly.
 - Retry policy is verifiable:
   - zero automatic retries on handshake/thread/turn/interrupt calls.

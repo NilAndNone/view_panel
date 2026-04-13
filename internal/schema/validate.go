@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"view_panel/internal/config"
+	"view_panel/internal/materials"
 )
 
 // Diagnostic is the machine-readable startup validation surface consumed by the
@@ -17,8 +18,9 @@ type Diagnostic struct {
 }
 
 // ValidateStartupConfig is the single startup validator for the P00 contract.
-// It validates only CLI/config startup concerns and intentionally stops before
-// any later-stage runtime behavior.
+// It validates only CLI/config startup concerns, including deterministic
+// materials expansion assumptions, and intentionally stops before later-stage
+// runtime behavior.
 func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig) []Diagnostic {
 	diagnostics := make([]Diagnostic, 0)
 
@@ -34,9 +36,10 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 		diagnostics = append(diagnostics, Diagnostic{
 			Code:    "required",
 			Field:   "materials",
-			Message: "materials is required and must include at least one path",
+			Message: "materials is required and must include at least one path to a canonical materials file set",
 		})
 	} else {
+		materialsPathsValid := true
 		seen := make(map[string]int, len(cfg.Materials))
 		for index, material := range cfg.Materials {
 			field := fmt.Sprintf("materials[%d]", index)
@@ -46,6 +49,7 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 					Field:   field,
 					Message: "material path is required and must be non-blank",
 				})
+				materialsPathsValid = false
 				continue
 			}
 
@@ -55,6 +59,7 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 					Field:   field,
 					Message: fmt.Sprintf("material path duplicates canonical entry materials[%d]", firstIndex),
 				})
+				materialsPathsValid = false
 				continue
 			}
 			seen[material] = index
@@ -72,6 +77,7 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 					Field:   field,
 					Message: message,
 				})
+				materialsPathsValid = false
 				continue
 			}
 
@@ -81,6 +87,27 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 					Field:   field,
 					Message: fmt.Sprintf("material path %q must resolve to a file or directory", material),
 				})
+				materialsPathsValid = false
+			}
+		}
+
+		if materialsPathsValid {
+			resolvedPaths, err := materials.ResolveFiles(cfg.Materials)
+			if err != nil {
+				diagnostics = append(diagnostics, Diagnostic{
+					Code:    "materials_selection",
+					Field:   "materials",
+					Message: fmt.Sprintf("materials inputs must expand to at least one canonical file in deterministic merge order: %v", err),
+				})
+			} else {
+				loader := materials.Loader{}
+				if _, err := loader.LoadFiles(resolvedPaths); err != nil {
+					diagnostics = append(diagnostics, Diagnostic{
+						Code:    "materials_invalid",
+						Field:   "materials",
+						Message: fmt.Sprintf("materials inputs must load and merge under the canonical five-field contract: %v", err),
+					})
+				}
 			}
 		}
 	}
@@ -114,12 +141,6 @@ func ValidateStartupConfig(raw config.RawStartupInput, cfg config.StartupConfig)
 			Code:    "range",
 			Field:   "max_attempts_per_persona",
 			Message: "max_attempts_per_persona must be >= 1",
-		})
-	} else if cfg.MaxAttemptsPerPersona != 1 {
-		diagnostics = append(diagnostics, Diagnostic{
-			Code:    "unsupported_value",
-			Field:   "max_attempts_per_persona",
-			Message: "max_attempts_per_persona currently supports only 1",
 		})
 	}
 

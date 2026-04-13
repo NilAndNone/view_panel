@@ -11,11 +11,12 @@ SMOKE_QUESTION ?= smoke test question
 SMOKE_MODEL ?= gpt-5.4
 SMOKE_CONCURRENCY ?= 1
 
-.PHONY: help build smoke smoke-check
+.PHONY: help build smoke smoke-check capture-protocol
 
 help:
 	@echo "Targets:"
 	@echo "  make build"
+	@echo "  make capture-protocol"
 	@echo "  make smoke"
 	@echo "  make smoke-check RUN_ID=<run_id>"
 
@@ -66,3 +67,23 @@ smoke-check:
 	tar -cf - --exclude=.git . | (cd "$$tmpdir" && tar -xf -); \
 	cd "$$tmpdir"; \
 	go run ./tools/smokecheck --run-root "$$run_root"
+
+capture-protocol:
+	@set -eu; \
+	tmpdir="$$(mktemp -d "$(LOCAL_TMP_TEMPLATE)")"; \
+	trap 'rm -rf "$$tmpdir"' EXIT INT TERM; \
+	tar -cf - --exclude=.git . | (cd "$$tmpdir" && tar -xf -); \
+	cd "$$tmpdir"; \
+	capture_output="$$(go run ./tools/capture_protocol_bundle)"; \
+	printf '%s\n' "$$capture_output"; \
+	bundle_root="$${capture_output##*at }"; \
+	if [ -z "$$bundle_root" ]; then \
+	  echo "capture-protocol failed: no bundle root found under $$tmpdir/third_party/codex-protocol" >&2; \
+	  exit 1; \
+	fi; \
+	version="$$(basename "$$bundle_root")"; \
+	dest_root="$(REPO_ROOT)/third_party/codex-protocol/$$version"; \
+	mkdir -p "$$dest_root"; \
+	for name in openapi.json messages.json schema-index.json smoke-transcript.jsonl; do \
+	  cp "$$bundle_root/$$name" "$$dest_root/$$name"; \
+	done

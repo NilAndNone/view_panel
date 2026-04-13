@@ -7,10 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -154,26 +152,26 @@ func parseStartup(args []string) (config.StartupConfig, []schema.Diagnostic, err
 	})
 
 	raw := config.RawStartupInput{
-		Question:                     *question,
-		Materials:                    append([]string(nil), materials...),
-		PersonaSet:                   *personaSet,
-		OutDir:                       *outdir,
-		Concurrency:                  *concurrency,
-		Model:                        *model,
-		ReviewEnabled:                *reviewEnabled,
-		WorkerTimeoutMS:              *workerTimeoutMS,
-		MaxAttemptsPerPersona:        *maxAttemptsPerPersona,
-		ForbiddenToolNames:           append([]string(nil), forbiddenToolNames...),
-		QuestionProvided:             provided["question"],
-		MaterialsProvided:            provided["materials"],
-		PersonaSetProvided:           provided["persona-set"],
-		OutDirProvided:               provided["outdir"],
-		ConcurrencyProvided:          provided["concurrency"],
-		ModelProvided:                provided["model"],
-		ReviewEnabledProvided:        provided["review-enabled"],
-		WorkerTimeoutMSProvided:      provided["worker-timeout-ms"],
+		Question:                      *question,
+		Materials:                     append([]string(nil), materials...),
+		PersonaSet:                    *personaSet,
+		OutDir:                        *outdir,
+		Concurrency:                   *concurrency,
+		Model:                         *model,
+		ReviewEnabled:                 *reviewEnabled,
+		WorkerTimeoutMS:               *workerTimeoutMS,
+		MaxAttemptsPerPersona:         *maxAttemptsPerPersona,
+		ForbiddenToolNames:            append([]string(nil), forbiddenToolNames...),
+		QuestionProvided:              provided["question"],
+		MaterialsProvided:             provided["materials"],
+		PersonaSetProvided:            provided["persona-set"],
+		OutDirProvided:                provided["outdir"],
+		ConcurrencyProvided:           provided["concurrency"],
+		ModelProvided:                 provided["model"],
+		ReviewEnabledProvided:         provided["review-enabled"],
+		WorkerTimeoutMSProvided:       provided["worker-timeout-ms"],
 		MaxAttemptsPerPersonaProvided: provided["max-attempts-per-persona"],
-		ForbiddenToolNamesProvided:   provided["forbidden-tool-name"],
+		ForbiddenToolNamesProvided:    provided["forbidden-tool-name"],
 	}
 
 	cfg := config.NormalizeStartupConfig(raw)
@@ -431,89 +429,17 @@ func loadPrepareMaterials(ctx context.Context, paths []string) (materials.Canoni
 		return materials.CanonicalFields{}, err
 	}
 
-	selectedPath, err := selectMaterialsPath(paths)
+	resolvedPaths, err := materials.ResolveFiles(paths)
 	if err != nil {
 		return materials.CanonicalFields{}, err
 	}
 
 	loader := materials.Loader{}
-	fields, err := loader.LoadFile(selectedPath)
+	fields, err := loader.LoadFiles(resolvedPaths)
 	if err != nil {
 		return materials.CanonicalFields{}, err
 	}
 	return fields, nil
-}
-
-func selectMaterialsPath(paths []string) (string, error) {
-	candidates := make([]string, 0, len(paths))
-	for _, input := range paths {
-		if strings.TrimSpace(input) == "" {
-			return "", fmt.Errorf("materials path must not be empty")
-		}
-
-		info, err := os.Stat(input)
-		if err != nil {
-			return "", fmt.Errorf("inspect materials path %q: %w", input, err)
-		}
-
-		if info.IsDir() {
-			files, err := collectMaterialFiles(input)
-			if err != nil {
-				return "", fmt.Errorf("expand materials directory %q: %w", input, err)
-			}
-			candidates = append(candidates, files...)
-			continue
-		}
-		if !info.Mode().IsRegular() {
-			return "", fmt.Errorf("materials path %q must resolve to a regular file or directory", input)
-		}
-
-		absolute, err := filepath.Abs(input)
-		if err != nil {
-			return "", fmt.Errorf("canonicalize materials path %q: %w", input, err)
-		}
-		candidates = append(candidates, absolute)
-	}
-
-	if len(candidates) == 0 {
-		return "", fmt.Errorf("no materials file candidates found")
-	}
-
-	// The current materials loader consumes exactly one canonical document.
-	// Until a higher-level merger exists, preserve CLI order for explicit paths,
-	// expand directories in lexical order, and take the first resulting file.
-	return candidates[0], nil
-}
-
-func collectMaterialFiles(root string) ([]string, error) {
-	files := make([]string, 0)
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-
-		absolute, err := filepath.Abs(path)
-		if err != nil {
-			return err
-		}
-		files = append(files, absolute)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	sort.Strings(files)
-	return files, nil
 }
 
 func loadPreparePersonas(ctx context.Context, personaSetPath string) ([]prepare.PersonaRecord, error) {

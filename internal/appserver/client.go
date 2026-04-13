@@ -380,8 +380,11 @@ func decodeResult[T any](raw json.RawMessage) (T, error) {
 func (c *Client) readLoop() {
 	defer close(c.readerDone)
 
-	decoder := json.NewDecoder(c.stdout)
-	decoder.UseNumber()
+	decoder, err := NewStreamDecoder(c.stdout)
+	if err != nil {
+		c.finishReader(err)
+		return
+	}
 
 	for {
 		var envelope rawEnvelope

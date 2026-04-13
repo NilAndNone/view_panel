@@ -60,21 +60,92 @@ func TestValidateStartupConfigRejectsNonPositiveMaxAttempts(t *testing.T) {
 	requireDiagnostic(t, diagnostics, "max_attempts_per_persona", "range")
 }
 
-func TestValidateStartupConfigRejectsUnsupportedMaxAttempts(t *testing.T) {
+func TestValidateStartupConfigAllowsMultipleAttempts(t *testing.T) {
 	raw := validRawStartupInput(t)
 	raw.MaxAttemptsPerPersona = 2
 	raw.MaxAttemptsPerPersonaProvided = true
 
 	diagnostics := ValidateStartupConfig(raw, config.NormalizeStartupConfig(raw))
-	requireDiagnostic(t, diagnostics, "max_attempts_per_persona", "unsupported_value")
+	requireNoDiagnostic(t, diagnostics, "max_attempts_per_persona")
+}
+
+func TestValidateStartupConfigRejectsMalformedCanonicalMaterials(t *testing.T) {
+	raw := validRawStartupInput(t)
+	baseDir := t.TempDir()
+	materialPath := filepath.Join(baseDir, "bad_materials.json")
+	if err := os.WriteFile(materialPath, []byte(`{"roleplay_prompt": 1}`), 0o644); err != nil {
+		t.Fatalf("write malformed materials file: %v", err)
+	}
+	raw.Materials = []string{materialPath}
+
+	diagnostics := ValidateStartupConfig(raw, config.NormalizeStartupConfig(raw))
+	requireDiagnostic(t, diagnostics, "materials", "materials_invalid")
+}
+
+func TestValidateStartupConfigRejectsNullCanonicalMaterialsField(t *testing.T) {
+	raw := validRawStartupInput(t)
+	baseDir := t.TempDir()
+	materialPath := filepath.Join(baseDir, "null_materials.json")
+	content := `{
+  "roleplay_prompt": "roleplay",
+  "discussion_question": null,
+  "supplementary_materials": "materials",
+  "output_contract": "contract",
+  "assumptions_and_constraints": "constraints"
+}`
+	if err := os.WriteFile(materialPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write null materials file: %v", err)
+	}
+	raw.Materials = []string{materialPath}
+
+	diagnostics := ValidateStartupConfig(raw, config.NormalizeStartupConfig(raw))
+	requireDiagnostic(t, diagnostics, "materials", "materials_invalid")
+}
+
+func TestValidateStartupConfigRejectsMaterialsWhitespaceDriftConflict(t *testing.T) {
+	raw := validRawStartupInput(t)
+	baseDir := t.TempDir()
+	firstPath := filepath.Join(baseDir, "01.json")
+	secondPath := filepath.Join(baseDir, "02.json")
+	first := `{
+  "roleplay_prompt": "roleplay",
+  "discussion_question": "question",
+  "supplementary_materials": "first",
+  "output_contract": "contract",
+  "assumptions_and_constraints": "constraints"
+}`
+	second := `{
+  "roleplay_prompt": "",
+  "discussion_question": " question ",
+  "supplementary_materials": "second",
+  "output_contract": "",
+  "assumptions_and_constraints": ""
+}`
+	if err := os.WriteFile(firstPath, []byte(first), 0o644); err != nil {
+		t.Fatalf("write first materials file: %v", err)
+	}
+	if err := os.WriteFile(secondPath, []byte(second), 0o644); err != nil {
+		t.Fatalf("write second materials file: %v", err)
+	}
+	raw.Materials = []string{firstPath, secondPath}
+
+	diagnostics := ValidateStartupConfig(raw, config.NormalizeStartupConfig(raw))
+	requireDiagnostic(t, diagnostics, "materials", "materials_invalid")
 }
 
 func validRawStartupInput(t *testing.T) config.RawStartupInput {
 	t.Helper()
 
 	baseDir := t.TempDir()
-	materialPath := filepath.Join(baseDir, "materials.txt")
-	if err := os.WriteFile(materialPath, []byte("materials"), 0o644); err != nil {
+	materialPath := filepath.Join(baseDir, "materials.json")
+	content := `{
+  "roleplay_prompt": "roleplay",
+  "discussion_question": "question",
+  "supplementary_materials": "materials",
+  "output_contract": "contract",
+  "assumptions_and_constraints": "constraints"
+}`
+	if err := os.WriteFile(materialPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write materials file: %v", err)
 	}
 
@@ -102,4 +173,14 @@ func requireDiagnostic(t *testing.T, diagnostics []Diagnostic, field, code strin
 	}
 
 	t.Fatalf("expected diagnostic field=%q code=%q, got %v", field, code, diagnostics)
+}
+
+func requireNoDiagnostic(t *testing.T, diagnostics []Diagnostic, field string) {
+	t.Helper()
+
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Field == field {
+			t.Fatalf("expected no diagnostics for field=%q, got %v", field, diagnostics)
+		}
+	}
 }

@@ -69,7 +69,8 @@ Execute the full Stage 2 answer batch over all sealed personas, keep all multi-w
      - `forbidden_tool_names`
    - the initial retry policy is owned here and is explicit:
      - implement `max_attempts_per_persona` in the batch contract
-     - set the initial executable policy to exactly `1`
+     - support the validated runtime range `>= 1`
+     - keep all retry-count semantics and early-stop rules centralized in P09
      - do not add retries inside P08
    - define a batch result type that returns both:
      - the in-memory per-persona classified outcomes for immediate current-run handoff
@@ -278,7 +279,10 @@ Execute the full Stage 2 answer batch over all sealed personas, keep all multi-w
   - then apply forbidden-tool rejection
   - otherwise certify
 - `status.json.close_outcome_kind == "rejected_before_launch"` is mapped to P09 `failed`, not P09 `rejected`.
-- The initial Stage 2 retry policy is explicit and centralized in P09 with `max_attempts_per_persona == 1`.
+- The Stage 2 retry policy is explicit and centralized in P09:
+  - `max_attempts_per_persona` supports the validated startup range `>= 1`
+  - retries are executed one attempt at a time per persona
+  - retries stop early on `certified`, `rejected`, `batch_timeout`, `batch_cancelled_in_flight`, and `batch_cancelled_before_start`
 - P09 owns all per-persona timeout handling and maps it to stable failure reasons without pushing timeout logic into P08:
   - already-started personas cancelled by a non-timeout parent context use `failure_reason == "batch_cancelled_in_flight"`
   - not-yet-started personas cancelled before dispatch keep `failure_reason == "batch_cancelled_before_start"`

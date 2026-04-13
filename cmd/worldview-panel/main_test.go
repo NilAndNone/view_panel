@@ -175,8 +175,15 @@ func TestTranslateAnswerLaunchContextPreservesCodexHome(t *testing.T) {
 
 func TestParseStartupParsesPolicyFlags(t *testing.T) {
 	baseDir := t.TempDir()
-	materialPath := filepath.Join(baseDir, "materials.txt")
-	if err := os.WriteFile(materialPath, []byte("materials"), 0o644); err != nil {
+	materialPath := filepath.Join(baseDir, "materials.json")
+	content := `{
+  "roleplay_prompt": "roleplay",
+  "discussion_question": "question",
+  "supplementary_materials": "materials",
+  "output_contract": "contract",
+  "assumptions_and_constraints": "constraints"
+}`
+	if err := os.WriteFile(materialPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write materials file: %v", err)
 	}
 

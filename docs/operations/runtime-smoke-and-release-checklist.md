@@ -35,11 +35,19 @@ codex login
 - [codex-runtime-contract.md](/storage/emulated/0/projects/view_panel/docs/operations/codex-runtime-contract.md)
 - startup 会先写 `runs/<run_id>/audit/runtime_contract_status.json`，然后才决定是否继续进入三阶段
 
-5. 你知道当前 protocol bundle 还是 placeholder
+5. 你知道当前 protocol bundle 是 live captured，并清楚何时需要刷新它
 
 - `third_party/codex-protocol/0.0.0/`
 
-它目前不是 live-generated export，所以如果你在做 runtime contract 级别的联调，不要把它当成真实协议快照。
+当前 checked-in bundle 已经是 live capture，不再是 placeholder。
+
+如果你要刷新 pinned protocol evidence（例如 pinned CLI / protocol contract 变化后，或者发布前要重抓证据），运行：
+
+```sh
+make capture-protocol
+```
+
+`make smoke` 当前不会自动先跑 `make capture-protocol`；它直接使用仓库里现有的 checked-in live bundle。
 
 ## 共享存储锁问题
 
@@ -49,9 +57,10 @@ codex login
 go: RLock .../go.mod: function not implemented
 ```
 
-当前 `Makefile` 已经把 `go build` 和 `go run ./tools/smokecheck` 放到了本地 mirror 目录里执行，所以：
+当前 `Makefile` 已经把 `go build`、`go run ./tools/capture_protocol_bundle` 和 `go run ./tools/smokecheck` 放到了本地 mirror 目录里执行，所以：
 
 - `make build`
+- `make capture-protocol`
 - `make smoke`
 - `make smoke-check`
 
@@ -73,13 +82,27 @@ make smoke
 
 ## 真实 Smoke 执行
 
-### 1. 构建
+### 1. 如需刷新 pinned protocol bundle
+
+```sh
+make capture-protocol
+```
+
+这个 target 会：
+
+1. mirror 当前仓库到本地可加锁目录
+2. 运行 `tools/capture_protocol_bundle`
+3. 把刷新后的 protocol bundle 拷回 checked-in `third_party/codex-protocol/<version>/`
+
+如果你只是复用当前 checked-in bundle 跑 smoke，可以跳过这一步。
+
+### 2. 构建
 
 ```sh
 make build
 ```
 
-### 2. 跑完整 smoke
+### 3. 跑完整 smoke
 
 ```sh
 make smoke
@@ -88,11 +111,11 @@ make smoke
 这会做四件事：
 
 1. 构建二进制
-2. 运行 startup runtime-contract check
+2. 运行 startup runtime-contract check，并使用当前 checked-in 的 live protocol bundle
 3. 用固定 smoke dataset 跑真实全流程
 4. 自动找到最新 `run_id` 并执行 `smoke-check`
 
-### 3. Smoke dataset
+### 4. Smoke dataset
 
 当前固定 smoke dataset 在：
 
@@ -106,7 +129,7 @@ make smoke
 - 1 个材料文件
 - 2 个人格
 
-### 4. 输出目录
+### 5. 输出目录
 
 smoke 运行结果默认写到：
 
@@ -120,7 +143,7 @@ out/smoke/runs/<run_id>/
 make smoke-check RUN_ID=<run_id>
 ```
 
-### 5. 相关 CLI 控制
+### 6. 相关 CLI 控制
 
 真实 smoke 或人工运行时，当前还支持这些 startup 控制：
 
@@ -129,7 +152,11 @@ make smoke-check RUN_ID=<run_id>
 - `-worker-timeout-ms`
   - 默认 `0`，表示不启用 per-worker timeout
 - `-max-attempts-per-persona`
-  - 默认 `1`，当前只支持 `1`
+  - 默认 `1`
+  - 支持任意 `>= 1` 的启动配置值
+  - Stage 2 会按人格串行执行最多该次数的 attempts
+  - 一旦某次 attempt 进入 `certified`、`rejected`，或命中 batch-level timeout / cancellation failure，就会提前停止
+  - `answer_batch.json` 中的 `attempt_count` 表示该人格实际执行了多少次 attempt；只有未实际 dispatch 的 `batch_cancelled_before_start` 会是 `0`
 - `-forbidden-tool-name`
   - 可重复传入或逗号分隔，进入 Stage 2 forbidden-tool policy
 
@@ -158,6 +185,11 @@ make smoke-check RUN_ID=<run_id>
 - `pinned_cli_version`
 - `launcher_form`
 - `protocol_bundle_path`
+
+当前 hardened bundle / transport 的判读建议：
+
+- 当前 checked-in live bundle 下，不应该再出现 placeholder warning；如果仍然出现，先怀疑 bundle refresh 过程、bundle 内容本身，或 pinned runtime contract 是否已经漂移，不要先按“hash drift warning”处理
+- `transport framing is not strongly verified beyond sequential JSON assumption` 这类 warning 目前会持续出现，因为 startup audit 记录的是静态验证事实；runtime client 本身已经支持 framed transport 和 sequential fallback
 
 ### Stage 1: Prepare
 

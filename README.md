@@ -19,10 +19,10 @@
 
 当前仍然不是生产就绪，主要原因：
 
-- `third_party/codex-protocol/0.0.0/` 目前是 checked-in placeholder bundle，不是 live-generated protocol export
-- `internal/appserver/client.go` 当前按连续 JSON 流读取 stdout；如果真实协议使用 framed stdio，需要进一步适配
-- 多个 `--materials` 输入当前使用保守的确定性策略，不是完整的多文档 merge contract
-- runtime contract 启动检查当前只覆盖本地 CLI/version/launcher/bundle 约束与 warning facts，不替代真实协议导出或 framed transport 适配
+- `third_party/codex-protocol/0.0.0/` 现在是 checked-in live captured bundle；刷新方式是 `make capture-protocol`
+- `internal/appserver/stream.go` / `internal/appserver/client.go` 现在会优先探测 `Content-Length` framed stdio，并在未命中 framed 头时回退到 sequential JSON；checked-in `smoke-transcript.jsonl` 仍然只是最小 sequential-JSON capture evidence
+- 多个 `--materials` 输入现在只按 canonical 五字段执行显式 merge contract，不替代更通用的文档合并语义
+- runtime contract 启动检查现在会校验 pinned CLI/version、canonical launcher prefix、bundle 完整性、live-capture metadata 和 bundle hashes；P02 仍然负责 live handshake / turn lifecycle
 
 ## 仓库结构
 
@@ -53,7 +53,7 @@
 - `schemas/`
   - runtime JSON schema contracts
 - `third_party/codex-protocol/0.0.0/`
-  - pinned protocol bundle placeholder
+  - pinned live-captured protocol bundle
 - `runs/<run_id>/`
   - 每次运行的产物根目录
 
@@ -68,9 +68,11 @@
 当前 runtime contract 约束：
 
 - pinned CLI contract 记录在 [codex-runtime-contract.md](/storage/emulated/0/projects/view_panel/docs/operations/codex-runtime-contract.md)
+- checked-in protocol bundle 是 `third_party/codex-protocol/0.0.0/` 下的 live capture；需要刷新时使用 `make capture-protocol`
 - startup 会先执行 runtime-contract enforcement，再进入三阶段运行
 - blocking / warning 结果会写到 `runs/<run_id>/audit/runtime_contract_status.json`
 - canonical launcher 是 `codex app-server --listen stdio://`
+- app-server transport decoder 支持 `Content-Length` framed stdio，并在未探测到 framed 头时回退到 sequential JSON
 - 如果登录态无效，worker execution 应该 fail closed
 
 ## 快速开始
@@ -93,7 +95,7 @@ go build -o go_bin ./cmd/worldview-panel
   -model gpt-5.4 \
   -review-enabled=true \
   -worker-timeout-ms=0 \
-  -max-attempts-per-persona=1 \
+  -max-attempts-per-persona=2 \
   -forbidden-tool-name shell,web
 ```
 
@@ -111,6 +113,12 @@ go build -o go_bin ./cmd/worldview-panel
 
 ## Smoke
 
+如果你需要刷新 pinned protocol bundle（例如 pinned CLI / protocol contract 发生变化后），先运行：
+
+```sh
+make capture-protocol
+```
+
 当前仓库已经提供真实全流程 smoke 入口：
 
 ```sh
@@ -120,8 +128,11 @@ make smoke
 它会：
 
 1. 构建二进制
-2. 用固定 smoke dataset 跑真实 runtime flow
-3. 自动检查关键 prepare / answer / render artifacts
+2. 用当前 checked-in 的 live protocol bundle 运行 startup runtime-contract check
+3. 用固定 smoke dataset 跑真实 runtime flow
+4. 自动检查关键 prepare / answer / render artifacts
+
+`make smoke` 当前不会自动刷新 protocol bundle；它直接使用仓库里现有的 checked-in live bundle。需要刷新 pinned evidence 时，先单独运行 `make capture-protocol`。
 
 如果仓库位于 Android/Termux 共享存储路径，仓库里的 `go_bin` 可能因为 `noexec` 不能直接执行；`make smoke` 已经内置了本地 mirror 运行方式，优先用它做真实联调。
 
@@ -140,6 +151,7 @@ make smoke
   - 必填
   - 可重复传入，也可以传逗号分隔列表
   - 每个 entry 必须是存在的文件或目录
+  - runtime 会按 CLI 输入顺序保留显式文件；目录会展开成词典序 regular files；随后把全部选中的 canonical materials files 一起 merge
 - `-persona-set`
   - 必填
   - 人格集合索引文件路径
@@ -164,7 +176,11 @@ make smoke
 - `-max-attempts-per-persona`
   - 可选
   - 默认 `1`
-  - 当前只支持 `1`
+  - 必须 `>= 1`
+  - Stage 2 会对每个人格串行执行最多该次数的 attempts
+  - 一旦某次 attempt 被判定为 `certified`、`rejected`，或命中 batch-level timeout / cancellation failure，就会提前停止，不再继续后续 attempts
+  - forbidden-tool rejection 属于 `rejected`，不会继续重试
+  - `answer_batch.json` 里的 `attempt_count` 表示该人格实际执行了多少次 attempt；只有 `batch_cancelled_before_start` 这类未实际 dispatch 的失败会是 `0`
 - `-forbidden-tool-name`
   - 可选
   - 可重复传入，也可以传逗号分隔列表
@@ -192,6 +208,14 @@ CLI startup validation 失败时会向 `stderr` 输出 machine-readable JSON，�
 - `assumptions_and_constraints`
 
 每个字段都必须是 JSON string。
+
+当提供多个 `-materials` entry 时，runtime 会对所有选中的 canonical materials files 执行显式 merge contract：
+
+- 不再采用“pick one canonical file”
+- 每个文件仍然沿用同一个五字段 schema；如果某个文件不提供某个字段的内容，请把该字段写成空字符串
+- 显式文件按 CLI 输入顺序参与 merge；目录内 regular files 先按词典序展开，再按该顺序参与 merge
+- `roleplay_prompt`、`discussion_question`、`output_contract`、`assumptions_and_constraints`：所有文件里最多只能出现一个唯一的非空白值；出现冲突非空白值会直接报错
+- `supplementary_materials`：所有非空白值会按输入顺序用 `\n\n` 连接
 
 ### persona-set 输入
 
@@ -370,14 +394,9 @@ go test ./...
 
 ## 已知限制
 
-当前最重要的限制：
-
-- protocol bundle 还是 placeholder，不是 live-generated
-- transport framing 可能还要按真实 app-server 行为调整
-- material 多输入还没有完整 merge 语义
-- prepare soft review 还没有固定绑定到唯一 runtime reviewer
-- 当前还没有真正的细粒度自动化 smoke / e2e test 套件
-
+- `third_party/codex-protocol/0.0.0/` 现在是针对 pinned CLI `codex-cli 0.0.0` 的 checked-in live captured bundle，不再是 placeholder；但它只对该 pinned 版本提供静态证据，版本或协议变更时仍要用 `make capture-protocol` 重新捕获。
+- app-server runtime 已支持 `Content-Length` framed stdio，并在未命中 framed 头时回退到 sequential JSON；但 checked-in `smoke-transcript.jsonl` 目前只覆盖已观测到的最小 sequential fallback capture，而 startup audit 当前也会继续记录“尚未独立验证 framing”的 warning facts。
+- 多个 `--materials` 输入的 canonical 五字段 merge contract 已实现并在 startup/prepare 中生效；但它只覆盖 `roleplay_prompt`、`discussion_question`、`supplementary_materials`、`output_contract`、`assumptions_and_constraints`，不提供更通用的文档合并语义。
 ## 开发说明
 
 如果你是人类开发者，建议先读：

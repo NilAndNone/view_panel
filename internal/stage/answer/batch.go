@@ -42,17 +42,17 @@ type AnswerBatchResult struct {
 }
 
 type answerBatchArtifact struct {
-	SchemaVersion        string               `json:"schema_version"`
-	Stage                string               `json:"stage"`
-	RunID                string               `json:"run_id"`
-	MaxConcurrency       int                  `json:"max_concurrency"`
-	WorkerTimeoutMS      int                  `json:"worker_timeout_ms"`
-	MaxAttemptsPerPersona int                 `json:"max_attempts_per_persona"`
-	ForbiddenToolNames   []string             `json:"forbidden_tool_names"`
-	Counts               answerBatchCounts    `json:"counts"`
-	Certified            []certifiedBatchEntry `json:"certified"`
-	Failed               []failedBatchEntry    `json:"failed"`
-	Rejected             []rejectedBatchEntry  `json:"rejected"`
+	SchemaVersion         string                `json:"schema_version"`
+	Stage                 string                `json:"stage"`
+	RunID                 string                `json:"run_id"`
+	MaxConcurrency        int                   `json:"max_concurrency"`
+	WorkerTimeoutMS       int                   `json:"worker_timeout_ms"`
+	MaxAttemptsPerPersona int                   `json:"max_attempts_per_persona"`
+	ForbiddenToolNames    []string              `json:"forbidden_tool_names"`
+	Counts                answerBatchCounts     `json:"counts"`
+	Certified             []certifiedBatchEntry `json:"certified"`
+	Failed                []failedBatchEntry    `json:"failed"`
+	Rejected              []rejectedBatchEntry  `json:"rejected"`
 }
 
 type answerBatchCounts struct {
@@ -63,27 +63,27 @@ type answerBatchCounts struct {
 }
 
 type certifiedBatchEntry struct {
-	PersonaID             string `json:"persona_id"`
-	Outcome               string `json:"outcome"`
-	AttemptCount          int    `json:"attempt_count"`
-	StatusPath            string `json:"status_path"`
-	AttestationPath       string `json:"attestation_path"`
-	ResultJSONPath        string `json:"result_json_path"`
-	ResultJSONSHA256      string `json:"result_json_sha256"`
+	PersonaID               string `json:"persona_id"`
+	Outcome                 string `json:"outcome"`
+	AttemptCount            int    `json:"attempt_count"`
+	StatusPath              string `json:"status_path"`
+	AttestationPath         string `json:"attestation_path"`
+	ResultJSONPath          string `json:"result_json_path"`
+	ResultJSONSHA256        string `json:"result_json_sha256"`
 	AuthoritativeTextSHA256 string `json:"authoritative_text_sha256"`
 }
 
 type failedBatchEntry struct {
-	PersonaID            string  `json:"persona_id"`
-	Outcome              string  `json:"outcome"`
-	AttemptCount         int     `json:"attempt_count"`
-	FailureReason        string  `json:"failure_reason"`
-	StatusPath           *string `json:"status_path"`
-	AttestationPath      *string `json:"attestation_path"`
-	ResultJSONPath       *string `json:"result_json_path"`
+	PersonaID             string  `json:"persona_id"`
+	Outcome               string  `json:"outcome"`
+	AttemptCount          int     `json:"attempt_count"`
+	FailureReason         string  `json:"failure_reason"`
+	StatusPath            *string `json:"status_path"`
+	AttestationPath       *string `json:"attestation_path"`
+	ResultJSONPath        *string `json:"result_json_path"`
 	RunnerTerminalOutcome *string `json:"runner_terminal_outcome"`
-	LastReachedPhase     *string `json:"last_reached_phase"`
-	CloseOutcomeKind     *string `json:"close_outcome_kind"`
+	LastReachedPhase      *string `json:"last_reached_phase"`
+	CloseOutcomeKind      *string `json:"close_outcome_kind"`
 }
 
 type rejectedBatchEntry struct {
@@ -106,20 +106,20 @@ type forbiddenToolHit struct {
 }
 
 type workerArtifactBundle struct {
-	StatusPath       string
-	AttestationPath  string
-	ResultJSONPath   string
-	Status           *workerStatusArtifact
-	Attestation      *workerAttestationArtifact
-	Result           *workerResultArtifact
-	ResultJSONSHA256 *string
-	StatusMissing    bool
+	StatusPath         string
+	AttestationPath    string
+	ResultJSONPath     string
+	Status             *workerStatusArtifact
+	Attestation        *workerAttestationArtifact
+	Result             *workerResultArtifact
+	ResultJSONSHA256   *string
+	StatusMissing      bool
 	AttestationMissing bool
-	ResultMissing    bool
-	StatusInvalid    bool
+	ResultMissing      bool
+	StatusInvalid      bool
 	AttestationInvalid bool
-	ResultInvalid    bool
-	AnyArtifact      bool
+	ResultInvalid      bool
+	AnyArtifact        bool
 }
 
 type batchPersonaOutcome struct {
@@ -144,7 +144,11 @@ func (b BatchRunner) Execute(ctx context.Context, req AnswerBatchRequest) (Answe
 	if maxConcurrency < 1 {
 		maxConcurrency = 1
 	}
-	maxAttempts := 1
+	maxAttempts := req.MaxAttemptsPerPersona
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	req.MaxAttemptsPerPersona = maxAttempts
 	normalizedForbiddenToolNames := normalizeForbiddenToolNames(req.ForbiddenToolNames)
 
 	outcomes := make([]batchPersonaOutcome, len(req.Workspaces))
@@ -169,35 +173,50 @@ func (b BatchRunner) Execute(ctx context.Context, req AnswerBatchRequest) (Answe
 		workerCount = len(req.Workspaces)
 	}
 
-	jobs := make(chan int)
+	readyWorkers := make(chan int, workerCount)
+	assignments := make([]chan int, workerCount)
 	var wg sync.WaitGroup
-	for i := 0; i < workerCount; i++ {
+	for worker := 0; worker < workerCount; worker++ {
+		assignments[worker] = make(chan int)
 		wg.Add(1)
-		go func() {
+		go func(worker int, assigned <-chan int) {
 			defer wg.Done()
-			for index := range jobs {
+			readyWorkers <- worker
+			for index := range assigned {
 				outcomes[index] = b.executeOne(ctx, req, req.Workspaces[index], normalizedForbiddenToolNames)
+				readyWorkers <- worker
 			}
-		}()
+		}(worker, assignments[worker])
 	}
 
 	dispatchStopped := false
+	dispatchStoppedIndex := 0
 	for index := range req.Workspaces {
 		if ctx.Err() != nil {
 			dispatchStopped = true
-			for remaining := index; remaining < len(req.Workspaces); remaining++ {
-				outcomes[remaining] = batchPersonaOutcome{
-					Failed: cancelledBeforeStartFailure(req.Workspaces[remaining].PersonaID),
-				}
-			}
+			dispatchStoppedIndex = index
 			break
 		}
-		jobs <- index
+		worker, ok := nextReadyWorker(ctx, readyWorkers)
+		if !ok {
+			dispatchStopped = true
+			dispatchStoppedIndex = index
+			break
+		}
+		assignments[worker] <- index
 	}
-	close(jobs)
+	for _, assigned := range assignments {
+		close(assigned)
+	}
 	wg.Wait()
 
-	if !dispatchStopped {
+	if dispatchStopped {
+		for remaining := dispatchStoppedIndex; remaining < len(req.Workspaces); remaining++ {
+			outcomes[remaining] = batchPersonaOutcome{
+				Failed: cancelledBeforeStartFailure(req.Workspaces[remaining].PersonaID),
+			}
+		}
+	} else {
 		for index := range outcomes {
 			if outcomes[index].Certified == nil && outcomes[index].Failed == nil && outcomes[index].Rejected == nil {
 				outcomes[index] = batchPersonaOutcome{
@@ -240,13 +259,48 @@ func (b BatchRunner) Execute(ctx context.Context, req AnswerBatchRequest) (Answe
 }
 
 func (b BatchRunner) executeOne(parent context.Context, req AnswerBatchRequest, workspace SealedPersonaWorkspace, forbiddenToolNames []string) batchPersonaOutcome {
-	attemptCount := 1
+	maxAttempts := req.MaxAttemptsPerPersona
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	var lastOutcome batchPersonaOutcome
+	for attemptCount := 1; attemptCount <= maxAttempts; attemptCount++ {
+		if parent.Err() != nil {
+			return batchPersonaOutcome{
+				Failed: cancelledBeforeAttemptFailure(workspace.PersonaID, attemptCount-1),
+			}
+		}
+		outcome := b.executeAttempt(parent, req, workspace, forbiddenToolNames, attemptCount)
+		lastOutcome = outcome
+		if outcome.Certified != nil || outcome.Rejected != nil {
+			return outcome
+		}
+		if outcome.Failed != nil && (outcome.Failed.FailureReason == failureReasonBatchCancelledRun || outcome.Failed.FailureReason == failureReasonBatchTimeout || outcome.Failed.FailureReason == failureReasonBatchCancelledWait) {
+			return outcome
+		}
+	}
+
+	return lastOutcome
+}
+
+func (b BatchRunner) executeAttempt(parent context.Context, req AnswerBatchRequest, workspace SealedPersonaWorkspace, forbiddenToolNames []string, attemptCount int) batchPersonaOutcome {
+	if parent.Err() != nil {
+		return batchPersonaOutcome{
+			Failed: cancelledBeforeAttemptFailure(workspace.PersonaID, attemptCount-1),
+		}
+	}
 	attemptCtx := parent
 	cancel := func() {}
 	if req.WorkerTimeoutMS > 0 {
 		attemptCtx, cancel = context.WithTimeout(parent, time.Duration(req.WorkerTimeoutMS)*time.Millisecond)
 	}
 	defer cancel()
+	if parent.Err() != nil {
+		return batchPersonaOutcome{
+			Failed: cancelledBeforeAttemptFailure(workspace.PersonaID, attemptCount-1),
+		}
+	}
 
 	execution, runErr := b.Runner.Execute(attemptCtx, ExecuteWorkerRequest{
 		Workspace: workspace,
@@ -456,10 +510,14 @@ func failedEntryFromBundle(personaID string, attemptCount int, reason string, bu
 }
 
 func cancelledBeforeStartFailure(personaID string) *failedBatchEntry {
+	return cancelledBeforeAttemptFailure(personaID, 0)
+}
+
+func cancelledBeforeAttemptFailure(personaID string, attemptCount int) *failedBatchEntry {
 	return &failedBatchEntry{
 		PersonaID:             personaID,
 		Outcome:               batchOutcomeFailed,
-		AttemptCount:          0,
+		AttemptCount:          attemptCount,
 		FailureReason:         failureReasonBatchCancelledWait,
 		StatusPath:            nil,
 		AttestationPath:       nil,
@@ -504,6 +562,25 @@ func cloneStringPtr(value *string) *string {
 		return nil
 	}
 	return stringPtr(*value)
+}
+
+func nextReadyWorker(ctx context.Context, readyWorkers <-chan int) (int, bool) {
+	if ctx.Err() != nil {
+		return 0, false
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, false
+	case worker, ok := <-readyWorkers:
+		if !ok {
+			return 0, false
+		}
+		if ctx.Err() != nil {
+			return 0, false
+		}
+		return worker, true
+	}
 }
 
 func expectedBatchRelativePaths(personaID string) (string, string, string) {

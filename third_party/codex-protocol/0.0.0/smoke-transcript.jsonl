@@ -1,8 +1,11 @@
-{"record_type":"meta","placeholder":true,"package":"@openai/codex","pinned_version":"0.0.0","note":"Checked-in placeholder smoke transcript for bootstrap contract pinning."}
-{"direction":"client->server","message":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"worldview-panel","version":"bootstrap"}}}}
-{"direction":"server->client","message":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"placeholder","capabilities":{}}}}
-{"direction":"client->server","message":{"jsonrpc":"2.0","method":"initialized","params":{}}}
-{"direction":"client->server","message":{"jsonrpc":"2.0","id":2,"method":"configRequirements/read","params":{}}}
-{"direction":"client->server","message":{"jsonrpc":"2.0","id":3,"method":"thread/start","params":{}}}
-{"direction":"client->server","message":{"jsonrpc":"2.0","id":4,"method":"turn/start","params":{"threadId":"placeholder-thread","input":{"type":"text","text":"smoke test"}}}}
-{"direction":"server->client","message":{"jsonrpc":"2.0","method":"item/completed.agentMessage","params":{"item":{"id":"placeholder-item","text":"placeholder completion"}}}}
+{"captured_at_utc":"2026-04-13T06:20:40Z","generated_from_live_cli":true,"observed_cli_version":"0.0.0","package":"@openai/codex","pinned_version":"0.0.0","record_type":"meta","smoke_prompt":"Reply with exactly OK.","terminal_completion":{"item_type":"agentMessage","method":"item/completed","phase":"final_answer"},"transport":"sequential-json"}
+{"direction":"client-\u003eserver","message":{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"clientInfo":{"name":"view-panel-capture","version":"0.0.0"}}}}
+{"direction":"server-\u003eclient","message":{"id":1,"result":{"platformFamily":"unix","platformOs":"android","userAgent":"view-panel-capture/0.0.0 (Android 16.0.0; unknown) xterm-256color (view-panel-capture; 0.0.0)"}}}
+{"direction":"client-\u003eserver","message":{"jsonrpc":"2.0","method":"initialized","params":{}}}
+{"direction":"client-\u003eserver","message":{"id":2,"jsonrpc":"2.0","method":"configRequirements/read","params":{}}}
+{"direction":"server-\u003eclient","message":{"id":2,"result":{"requirements":null}}}
+{"direction":"client-\u003eserver","message":{"id":3,"jsonrpc":"2.0","method":"thread/start","params":{"approvalPolicy":"never","cwd":"/data/data/com.termux/files/home/view-panel-capture-3434344585","ephemeral":true}}}
+{"direction":"server-\u003eclient","message":{"id":3,"result":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/data/data/com.termux/files/home/view-panel-capture-3434344585","model":"gpt-5.4","modelProvider":"openai","reasoningEffort":"xhigh","sandbox":{"type":"dangerFullAccess"},"serviceTier":"fast","thread":{"agentNickname":null,"agentRole":null,"cliVersion":"0.0.0","createdAt":1776061251,"cwd":"/data/data/com.termux/files/home/view-panel-capture-3434344585","ephemeral":true,"gitInfo":null,"id":"019d857f-ffec-7471-9160-339a3f48a8f3","modelProvider":"openai","name":null,"path":null,"preview":"","source":"vscode","status":{"type":"idle"},"turns":[],"updatedAt":1776061251}}}}
+{"direction":"client-\u003eserver","message":{"id":4,"jsonrpc":"2.0","method":"turn/start","params":{"input":[{"text":"Reply with exactly OK.","type":"text"}],"threadId":"019d857f-ffec-7471-9160-339a3f48a8f3"}}}
+{"direction":"server-\u003eclient","message":{"id":4,"result":{"turn":{"error":null,"id":"019d8580-000b-7b30-b539-7f184c99622a","items":[],"status":"inProgress"}}}}
+{"direction":"server-\u003eclient","message":{"method":"item/completed","params":{"item":{"id":"msg_01eb01bd38aa43100169dc8b536d9481918e2621be15e4fda3","memoryCitation":null,"phase":"final_answer","text":"OK","type":"agentMessage"},"threadId":"019d857f-ffec-7471-9160-339a3f48a8f3","turnId":"019d8580-000b-7b30-b539-7f184c99622a"}}}

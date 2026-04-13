@@ -28,7 +28,7 @@ Own the real end-to-end runtime validation flow so operators can exercise one fu
 - P12 owns the fixed smoke fixtures under `testdata/smoke/`.
 - P12 owns the machine-checkable smoke verifier in `tools/smokecheck/main.go`.
 - P12 owns the formal run, release, and debug checklist in `docs/operations/runtime-smoke-and-release-checklist.md`.
-- P12 treats `make build`, `make smoke`, and `make smoke-check RUN_ID=<run_id>` as the canonical end-to-end smoke surface.
+- P12 treats `make build`, `make capture-protocol`, `make smoke`, and `make smoke-check RUN_ID=<run_id>` as the canonical operator surface for protocol evidence refresh plus end-to-end smoke.
 
 # Out Of Scope
 
@@ -52,9 +52,11 @@ Own the real end-to-end runtime validation flow so operators can exercise one fu
 
 1. Define `Makefile` as the canonical full-flow smoke surface.
    - `make build` is the canonical binary build path.
+   - `make capture-protocol` is the canonical pinned protocol-bundle refresh path.
    - `make smoke` is the canonical end-to-end smoke path.
    - `make smoke-check RUN_ID=<run_id>` is the canonical post-run verifier.
    - No alternative README-only long command becomes the preferred smoke path.
+   - `make smoke` may use the current checked-in live bundle as-is; protocol refresh remains an explicit separate operator step.
 2. Lock the smoke dataset to one fixed minimal repeatable slice.
    - exactly `2 personas`
    - exactly `1 material`
@@ -77,6 +79,7 @@ Own the real end-to-end runtime validation flow so operators can exercise one fu
 5. Keep operational reality in scope for the smoke harness.
    - shared-storage `go.mod` locking limitations are handled by the Makefile flow
    - shared-storage `noexec` limitations on repo-local binaries are handled by the Makefile flow
+   - protocol-bundle capture refresh is also handled by the Makefile mirror flow
    - the checklist documents those constraints for operators
 6. Keep P12 terminal.
    - P12 validates the full runtime chain after P11 outputs exist
@@ -86,6 +89,7 @@ Own the real end-to-end runtime validation flow so operators can exercise one fu
 # Acceptance Checks
 
 - `make build` exists as the canonical build entrypoint.
+- `make capture-protocol` exists as the canonical protocol-bundle refresh entrypoint.
 - `make smoke` exists as the canonical full-flow smoke entrypoint.
 - `make smoke-check RUN_ID=<run_id>` exists as the canonical verification entrypoint.
 - The retained smoke dataset is fixed to `2 personas` and `1 material`.
@@ -103,4 +107,5 @@ Own the real end-to-end runtime validation flow so operators can exercise one fu
 
 - P12 is the terminal validation plan for the retained runtime chain.
 - Repository-level documentation can treat `make smoke` as the recommended full-flow runtime check because P12 owns that operator contract.
+- Repository-level documentation can tell operators to run `make capture-protocol` before smoke or release when pinned protocol evidence needs refreshing, without redefining `make smoke` as the bundle-refresh owner.
 - Future runtime changes that alter the full-flow verification surface must update P12 rather than scattering smoke ownership into P00 or P11.

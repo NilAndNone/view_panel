@@ -1,21 +1,49 @@
 {
-  "bundle_type": "codex-protocol-schema-index",
-  "package": "@openai/codex",
-  "pinned_version": "0.0.0",
-  "generated_at_utc": "2026-04-11T00:00:00Z",
-  "placeholder": true,
   "artifacts": [
     {
       "path": "openapi.json",
-      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+      "sha256_hex": "97fcd285995d66676d60c73173bd756e0c15059cb1c9508662ee4d4382c19c13"
     },
     {
       "path": "messages.json",
-      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+      "sha256_hex": "d10cc08d1f1367488b896718ef3dec4a653f13e8986dfed0c644b33f75ba8cf4"
     },
     {
       "path": "smoke-transcript.jsonl",
-      "sha256_hex": "PLACEHOLDER_NOT_GENERATED"
+      "sha256_hex": "99c1f893198a60dae4f65bc81e065ad3ed274f011177986e430a5f338621c112"
     }
-  ]
+  ],
+  "bundle_type": "codex-protocol-schema-index",
+  "captured_at_utc": "2026-04-13T06:20:40Z",
+  "generated_from_live_cli": true,
+  "observed_cli_version": "0.0.0",
+  "package": "@openai/codex",
+  "pinned_version": "0.0.0",
+  "schema_capture": {
+    "command": [
+      "codex",
+      "app-server",
+      "generate-json-schema",
+      "--out",
+      "\u003ctemp\u003e"
+    ],
+    "entrypoint": "codex_app_server_protocol.schemas.json",
+    "message_index": "messages.json"
+  },
+  "smoke_capture": {
+    "command": [
+      "codex",
+      "app-server",
+      "--listen",
+      "stdio://"
+    ],
+    "filter": "minimal-handshake-plus-terminal-agentMessage",
+    "smoke_prompt": "Reply with exactly OK.",
+    "terminal_event": {
+      "item_type": "agentMessage",
+      "method": "item/completed",
+      "phase": "final_answer"
+    },
+    "transport": "sequential-json"
+  }
 }

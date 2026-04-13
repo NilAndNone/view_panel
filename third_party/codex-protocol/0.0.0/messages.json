@@ -1,39 +1,447 @@
 {
   "bundle_type": "codex-protocol-message-index",
+  "captured_at_utc": "2026-04-13T06:20:40Z",
+  "client_notifications": [
+    {
+      "method": "initialized",
+      "title": "InitializedNotification"
+    }
+  ],
+  "generated_from_live_cli": true,
+  "observed_cli_version": "0.0.0",
   "package": "@openai/codex",
   "pinned_version": "0.0.0",
-  "placeholder": true,
-  "note": "This file is a checked-in placeholder bundle for bootstrap contract pinning.",
   "requests": [
     {
-      "method": "initialize",
-      "response_type": "InitializeResult"
+      "method": "account/login/cancel",
+      "title": "Account/login/cancelRequest"
+    },
+    {
+      "method": "account/login/start",
+      "title": "Account/login/startRequest"
+    },
+    {
+      "method": "account/logout",
+      "title": "Account/logoutRequest"
+    },
+    {
+      "method": "account/rateLimits/read",
+      "title": "Account/rateLimits/readRequest"
+    },
+    {
+      "method": "account/read",
+      "title": "Account/readRequest"
+    },
+    {
+      "method": "app/list",
+      "title": "App/listRequest"
+    },
+    {
+      "method": "command/exec",
+      "title": "Command/execRequest"
+    },
+    {
+      "method": "command/exec/resize",
+      "title": "Command/exec/resizeRequest"
+    },
+    {
+      "method": "command/exec/terminate",
+      "title": "Command/exec/terminateRequest"
+    },
+    {
+      "method": "command/exec/write",
+      "title": "Command/exec/writeRequest"
+    },
+    {
+      "method": "config/batchWrite",
+      "title": "Config/batchWriteRequest"
+    },
+    {
+      "method": "config/mcpServer/reload",
+      "title": "Config/mcpServer/reloadRequest"
+    },
+    {
+      "method": "config/read",
+      "title": "Config/readRequest"
+    },
+    {
+      "method": "config/value/write",
+      "title": "Config/value/writeRequest"
     },
     {
       "method": "configRequirements/read",
-      "response_type": "ConfigRequirementsReadResult"
+      "title": "ConfigRequirements/readRequest"
+    },
+    {
+      "method": "experimentalFeature/list",
+      "title": "ExperimentalFeature/listRequest"
+    },
+    {
+      "method": "externalAgentConfig/detect",
+      "title": "ExternalAgentConfig/detectRequest"
+    },
+    {
+      "method": "externalAgentConfig/import",
+      "title": "ExternalAgentConfig/importRequest"
+    },
+    {
+      "method": "feedback/upload",
+      "title": "Feedback/uploadRequest"
+    },
+    {
+      "method": "fs/copy",
+      "title": "Fs/copyRequest"
+    },
+    {
+      "method": "fs/createDirectory",
+      "title": "Fs/createDirectoryRequest"
+    },
+    {
+      "method": "fs/getMetadata",
+      "title": "Fs/getMetadataRequest"
+    },
+    {
+      "method": "fs/readDirectory",
+      "title": "Fs/readDirectoryRequest"
+    },
+    {
+      "method": "fs/readFile",
+      "title": "Fs/readFileRequest"
+    },
+    {
+      "method": "fs/remove",
+      "title": "Fs/removeRequest"
+    },
+    {
+      "method": "fs/writeFile",
+      "title": "Fs/writeFileRequest"
+    },
+    {
+      "method": "fuzzyFileSearch",
+      "title": "FuzzyFileSearchRequest"
+    },
+    {
+      "method": "initialize",
+      "title": "InitializeRequest"
+    },
+    {
+      "method": "mcpServer/oauth/login",
+      "title": "McpServer/oauth/loginRequest"
+    },
+    {
+      "method": "mcpServerStatus/list",
+      "title": "McpServerStatus/listRequest"
+    },
+    {
+      "method": "model/list",
+      "title": "Model/listRequest"
+    },
+    {
+      "method": "plugin/install",
+      "title": "Plugin/installRequest"
+    },
+    {
+      "method": "plugin/list",
+      "title": "Plugin/listRequest"
+    },
+    {
+      "method": "plugin/read",
+      "title": "Plugin/readRequest"
+    },
+    {
+      "method": "plugin/uninstall",
+      "title": "Plugin/uninstallRequest"
+    },
+    {
+      "method": "review/start",
+      "title": "Review/startRequest"
+    },
+    {
+      "method": "skills/config/write",
+      "title": "Skills/config/writeRequest"
+    },
+    {
+      "method": "skills/list",
+      "title": "Skills/listRequest"
+    },
+    {
+      "method": "thread/archive",
+      "title": "Thread/archiveRequest"
+    },
+    {
+      "method": "thread/compact/start",
+      "title": "Thread/compact/startRequest"
+    },
+    {
+      "method": "thread/fork",
+      "title": "Thread/forkRequest"
+    },
+    {
+      "method": "thread/list",
+      "title": "Thread/listRequest"
+    },
+    {
+      "method": "thread/loaded/list",
+      "title": "Thread/loaded/listRequest"
+    },
+    {
+      "method": "thread/metadata/update",
+      "title": "Thread/metadata/updateRequest"
+    },
+    {
+      "method": "thread/name/set",
+      "title": "Thread/name/setRequest"
+    },
+    {
+      "method": "thread/read",
+      "title": "Thread/readRequest"
+    },
+    {
+      "method": "thread/resume",
+      "title": "Thread/resumeRequest"
+    },
+    {
+      "method": "thread/rollback",
+      "title": "Thread/rollbackRequest"
+    },
+    {
+      "method": "thread/shellCommand",
+      "title": "Thread/shellCommandRequest"
     },
     {
       "method": "thread/start",
-      "response_type": "ThreadStartResult"
+      "title": "Thread/startRequest"
+    },
+    {
+      "method": "thread/unarchive",
+      "title": "Thread/unarchiveRequest"
+    },
+    {
+      "method": "thread/unsubscribe",
+      "title": "Thread/unsubscribeRequest"
+    },
+    {
+      "method": "turn/interrupt",
+      "title": "Turn/interruptRequest"
     },
     {
       "method": "turn/start",
-      "response_type": "TurnStartResult"
-    }
-  ],
-  "notifications": [
-    {
-      "method": "initialized"
+      "title": "Turn/startRequest"
     },
     {
-      "method": "turn/interrupt"
+      "method": "turn/steer",
+      "title": "Turn/steerRequest"
+    },
+    {
+      "method": "windowsSandbox/setupStart",
+      "title": "WindowsSandbox/setupStartRequest"
     }
   ],
-  "events": [
+  "server_notifications": [
     {
-      "method": "item/completed.agentMessage",
-      "terminal": true
+      "method": "account/login/completed",
+      "title": "Account/login/completedNotification"
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "title": "Account/rateLimits/updatedNotification"
+    },
+    {
+      "method": "account/updated",
+      "title": "Account/updatedNotification"
+    },
+    {
+      "method": "app/list/updated",
+      "title": "App/list/updatedNotification"
+    },
+    {
+      "method": "command/exec/outputDelta",
+      "title": "Command/exec/outputDeltaNotification"
+    },
+    {
+      "method": "configWarning",
+      "title": "ConfigWarningNotification"
+    },
+    {
+      "method": "deprecationNotice",
+      "title": "DeprecationNoticeNotification"
+    },
+    {
+      "method": "error",
+      "title": "ErrorNotification"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionCompleted",
+      "title": "FuzzyFileSearch/sessionCompletedNotification"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionUpdated",
+      "title": "FuzzyFileSearch/sessionUpdatedNotification"
+    },
+    {
+      "method": "hook/completed",
+      "title": "Hook/completedNotification"
+    },
+    {
+      "method": "hook/started",
+      "title": "Hook/startedNotification"
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "title": "Item/agentMessage/deltaNotification"
+    },
+    {
+      "method": "item/autoApprovalReview/completed",
+      "title": "Item/autoApprovalReview/completedNotification"
+    },
+    {
+      "method": "item/autoApprovalReview/started",
+      "title": "Item/autoApprovalReview/startedNotification"
+    },
+    {
+      "method": "item/commandExecution/outputDelta",
+      "title": "Item/commandExecution/outputDeltaNotification"
+    },
+    {
+      "method": "item/commandExecution/terminalInteraction",
+      "title": "Item/commandExecution/terminalInteractionNotification"
+    },
+    {
+      "method": "item/completed",
+      "title": "Item/completedNotification"
+    },
+    {
+      "method": "item/fileChange/outputDelta",
+      "title": "Item/fileChange/outputDeltaNotification"
+    },
+    {
+      "method": "item/mcpToolCall/progress",
+      "title": "Item/mcpToolCall/progressNotification"
+    },
+    {
+      "method": "item/plan/delta",
+      "title": "Item/plan/deltaNotification"
+    },
+    {
+      "method": "item/reasoning/summaryPartAdded",
+      "title": "Item/reasoning/summaryPartAddedNotification"
+    },
+    {
+      "method": "item/reasoning/summaryTextDelta",
+      "title": "Item/reasoning/summaryTextDeltaNotification"
+    },
+    {
+      "method": "item/reasoning/textDelta",
+      "title": "Item/reasoning/textDeltaNotification"
+    },
+    {
+      "method": "item/started",
+      "title": "Item/startedNotification"
+    },
+    {
+      "method": "mcpServer/oauthLogin/completed",
+      "title": "McpServer/oauthLogin/completedNotification"
+    },
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "title": "McpServer/startupStatus/updatedNotification"
+    },
+    {
+      "method": "model/rerouted",
+      "title": "Model/reroutedNotification"
+    },
+    {
+      "method": "serverRequest/resolved",
+      "title": "ServerRequest/resolvedNotification"
+    },
+    {
+      "method": "skills/changed",
+      "title": "Skills/changedNotification"
+    },
+    {
+      "method": "thread/archived",
+      "title": "Thread/archivedNotification"
+    },
+    {
+      "method": "thread/closed",
+      "title": "Thread/closedNotification"
+    },
+    {
+      "method": "thread/compacted",
+      "title": "Thread/compactedNotification"
+    },
+    {
+      "method": "thread/name/updated",
+      "title": "Thread/name/updatedNotification"
+    },
+    {
+      "method": "thread/realtime/closed",
+      "title": "Thread/realtime/closedNotification"
+    },
+    {
+      "method": "thread/realtime/error",
+      "title": "Thread/realtime/errorNotification"
+    },
+    {
+      "method": "thread/realtime/itemAdded",
+      "title": "Thread/realtime/itemAddedNotification"
+    },
+    {
+      "method": "thread/realtime/outputAudio/delta",
+      "title": "Thread/realtime/outputAudio/deltaNotification"
+    },
+    {
+      "method": "thread/realtime/started",
+      "title": "Thread/realtime/startedNotification"
+    },
+    {
+      "method": "thread/realtime/transcriptUpdated",
+      "title": "Thread/realtime/transcriptUpdatedNotification"
+    },
+    {
+      "method": "thread/started",
+      "title": "Thread/startedNotification"
+    },
+    {
+      "method": "thread/status/changed",
+      "title": "Thread/status/changedNotification"
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "title": "Thread/tokenUsage/updatedNotification"
+    },
+    {
+      "method": "thread/unarchived",
+      "title": "Thread/unarchivedNotification"
+    },
+    {
+      "method": "turn/completed",
+      "title": "Turn/completedNotification"
+    },
+    {
+      "method": "turn/diff/updated",
+      "title": "Turn/diff/updatedNotification"
+    },
+    {
+      "method": "turn/plan/updated",
+      "title": "Turn/plan/updatedNotification"
+    },
+    {
+      "method": "turn/started",
+      "title": "Turn/startedNotification"
+    },
+    {
+      "method": "windows/worldWritableWarning",
+      "title": "Windows/worldWritableWarningNotification"
+    },
+    {
+      "method": "windowsSandbox/setupCompleted",
+      "title": "WindowsSandbox/setupCompletedNotification"
     }
-  ]
+  ],
+  "terminal_completion": {
+    "item_type": "agentMessage",
+    "method": "item/completed",
+    "phase": "final_answer"
+  }
 }

@@ -74,12 +74,14 @@ Shared runtime foundations:
 App-server runtime:
 
 - `internal/appserver/messages.go`
+- `internal/appserver/stream.go`
 - `internal/appserver/client.go`
 - `internal/appserver/runner.go`
 
 Prepare chain:
 
 - `internal/materials/loader.go`
+- `internal/materials/merge.go`
 - `internal/persona/library.go`
 - `internal/stage/prepare/prepare.go`
 - `internal/stage/prepare/gate.go`
@@ -113,8 +115,9 @@ Checked-in protocol bundle:
 Current reality:
 
 - the pinned version is based on the locally observed CLI version `codex-cli 0.0.0`
-- the protocol bundle is placeholder content
-- do not silently “trust” it as a live-generated schema export
+- the checked-in protocol bundle under `third_party/codex-protocol/0.0.0/` is live captured content for that pinned CLI
+- refresh the checked-in bundle with `make capture-protocol` when the pinned CLI or protocol contract changes
+- do not treat the checked-in bundle as proof that a newer or unpinned CLI is compatible; startup/runtime checks still own compatibility enforcement
 
 If you change the Codex runtime contract, update both:
 
@@ -130,7 +133,7 @@ Keep these ownership rules intact:
 - stage packages must not invent a second path / writer / hash convention
 - `P07` sealing may create isolated external workspaces, but run-tree artifacts still belong to `internal/storage`
 - `P08` owns single-worker execution only
-- `P09` owns batch policy only
+- `P09` owns batch policy, retry policy, forbidden-tool rejection, and `answer_batch.json`
 - `P10` reads Stage 2 only through `answer_batch.json` and referenced `result.json`
 - `P11` reads Stage 3 only through `raw_render_input.json` and `certified_render_input.json`
 
@@ -187,6 +190,11 @@ Stage 1 canonical dispatch fields are exactly:
 
 Do not introduce aliases for those field names.
 
+Multi-material merge semantics are explicit:
+
+- `roleplay_prompt`, `discussion_question`, `output_contract`, and `assumptions_and_constraints` allow at most one unique non-blank value across all selected canonical material files
+- `supplementary_materials` concatenates non-blank values in deterministic input order with `\n\n`
+
 Stage 2 sealing rules:
 
 - `P07` must not open `dispatch_input_v1.json`
@@ -224,13 +232,19 @@ go test ./...
 
 ### App-server transport seam
 
-Current `internal/appserver/client.go` assumes stdout can be decoded as sequential JSON values.
+`internal/appserver/stream.go` now owns stdout transport probing and decoding.
 
-If the real Codex app-server transport uses framed stdio, update the transport layer there instead of patching stage code around it.
+Current behavior:
+
+- probe stdout after leading transport whitespace
+- if the stream starts with `Content-Length:`, decode as framed stdio
+- otherwise fall back to sequential JSON decoding
+
+If the Codex app-server transport changes again, update `internal/appserver/stream.go` / `internal/appserver/client.go` and the runtime-contract docs instead of patching stage code around it.
 
 ### Materials seam
 
-Multiple `--materials` inputs currently use a conservative deterministic strategy rather than a full merge contract.
+Multiple `--materials` inputs now use the explicit canonical merge contract.
 
 If you change this, update:
 
